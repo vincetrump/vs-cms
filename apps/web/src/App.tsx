@@ -1,9 +1,9 @@
-import { Refine, Authenticated } from "@refinedev/core";
+import { Refine, Authenticated, AccessControlProvider } from "@refinedev/core";
 import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinedev/antd";
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, SettingOutlined, HistoryOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -25,6 +25,23 @@ import { SettingsPage } from "./pages/settings";
 import { JobList } from "./pages/jobs/list";
 import { JobShow } from "./pages/jobs/show";
 
+const accessControlProvider: AccessControlProvider = {
+  can: async ({ resource, action }) => {
+    const identity = await authProvider.getIdentity?.();
+    const role = (identity as any)?.role;
+
+    if (role === "admin") return { can: true };
+
+    const saleAllowed: Record<string, string[]> = {
+      "text-links": ["list", "create", "edit", "show", "delete"],
+      dashboard: ["list"],
+    };
+
+    const allowed = saleAllowed[resource || ""] || [];
+    return { can: allowed.includes(action || "") };
+  },
+};
+
 function App() {
   return (
     <BrowserRouter>
@@ -34,6 +51,7 @@ function App() {
             routerProvider={routerProvider}
             dataProvider={dataProvider}
             authProvider={authProvider}
+            accessControlProvider={accessControlProvider}
             notificationProvider={useNotificationProvider}
             resources={[
               {

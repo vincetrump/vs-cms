@@ -27,9 +27,9 @@ export class UsersService {
     return this.userModel.findById(id);
   }
 
-  async create(username: string, password: string): Promise<UserDocument> {
+  async create(username: string, password: string, role = 'admin'): Promise<UserDocument> {
     const passwordHash = await bcrypt.hash(password, 12);
-    return this.userModel.create({ username, passwordHash });
+    return this.userModel.create({ username, passwordHash, role });
   }
 
   async validatePassword(user: UserDocument, password: string): Promise<boolean> {
@@ -80,8 +80,14 @@ export class UsersService {
   async seedAdmin(): Promise<void> {
     const existing = await this.findByUsername('admin');
     if (!existing) {
-      await this.create('admin', 'admin123');
+      await this.create('admin', 'admin123', 'admin');
       console.log('Admin user created: admin / admin123');
+    }
+
+    const saleExists = await this.findByUsername('sale');
+    if (!saleExists) {
+      await this.create('sale', 'sale123', 'sale');
+      console.log('Sale user created: sale / sale123');
     }
   }
 }

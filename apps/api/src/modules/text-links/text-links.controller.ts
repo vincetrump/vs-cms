@@ -7,21 +7,25 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { TextLinksService } from './text-links.service';
 import { LinkDeploymentsService } from '../link-deployments/link-deployments.service';
 import { DiscordService } from '../discord/discord.service';
 import { JobsService } from '../jobs/jobs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ParseQueryPipe, ParsedQuery } from '../../common/pipes/parse-query.pipe';
 import { CreateTextLinkDto } from './dto/create-text-link.dto';
 import { UpdateTextLinkDto } from './dto/update-text-link.dto';
 
 @Controller('text-links')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class TextLinksController {
   constructor(
     private textLinksService: TextLinksService,
@@ -31,32 +35,42 @@ export class TextLinksController {
   ) {}
 
   @Get()
-  async findAll(@Query(new ParseQueryPipe()) query: ParsedQuery) {
+  async findAll(@Req() req: any, @Query(new ParseQueryPipe()) query: ParsedQuery) {
+    if (req.user.role === 'sale') {
+      query.filter.createdBy = req.user.sub;
+    }
     return this.textLinksService.findAll(query);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Req() req: any, @Param('id') id: string) {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');
+
+    if (req.user.role === 'sale' && link.createdBy?.toString() !== req.user.sub) {
+      throw new ForbiddenException();
+    }
 
     const deployments = await this.linkDeploymentsService.findByTextLink(id);
     return { ...link.toObject(), deployments };
   }
 
   @Post()
-  async create(@Body() dto: CreateTextLinkDto) {
+  async create(@Req() req: any, @Body() dto: CreateTextLinkDto) {
+    const isSale = req.user.role === 'sale';
+
     const link = await this.textLinksService.create({
       title: dto.title,
       anchorText: dto.anchorText,
       targetUrl: dto.targetUrl,
       rel: dto.rel || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-      status: 'active',
-      source: 'admin',
+      status: isSale ? 'disabled' : 'active',
+      source: isSale ? 'sale' : 'admin',
+      createdBy: req.user.sub,
     });
 
-    if (dto.websiteIds?.length) {
+    if (!isSale && dto.websiteIds?.length) {
       await this.jobsService.create('deploy_links', {
         textLinkId: link._id.toString(),
         websiteIds: dto.websiteIds,
@@ -68,9 +82,13 @@ export class TextLinksController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateTextLinkDto) {
+  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTextLinkDto) {
     const existing = await this.textLinksService.findById(id);
     if (!existing) throw new NotFoundException('Text link not found');
+
+    if (req.user.role === 'sale' && existing.createdBy?.toString() !== req.user.sub) {
+      throw new ForbiddenException();
+    }
 
     const changes: Record<string, { old: any; new: any }> = {};
     if (dto.title && dto.title !== existing.title)
@@ -93,7 +111,7 @@ export class TextLinksController {
       await this.jobsService.create('redeploy_link', { textLinkId: id });
     }
 
-    if (dto.websiteIds) {
+    if (req.user.role === 'admin' && dto.websiteIds) {
       await this.jobsService.create('sync_link_websites', {
         textLinkId: id,
         websiteIds: dto.websiteIds,
@@ -108,9 +126,13 @@ export class TextLinksController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Req() req: any, @Param('id') id: string) {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');
+
+    if (req.user.role === 'sale' && link.createdBy?.toString() !== req.user.sub) {
+      throw new ForbiddenException();
+    }
 
     await this.jobsService.create('undeploy_all', { textLinkId: id });
     await this.textLinksService.delete(id);
@@ -119,6 +141,7 @@ export class TextLinksController {
   }
 
   @Post(':id/deploy')
+  @Roles('admin')
   async deploy(
     @Param('id') id: string,
     @Body('websiteIds') websiteIds: string[],
@@ -137,6 +160,7 @@ export class TextLinksController {
   }
 
   @Post(':id/undeploy')
+  @Roles('admin')
   async undeploy(
     @Param('id') id: string,
     @Body('websiteIds') websiteIds: string[],
@@ -150,6 +174,7 @@ export class TextLinksController {
   }
 
   @Post(':id/toggle')
+  @Roles('admin')
   async toggle(@Param('id') id: string) {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');

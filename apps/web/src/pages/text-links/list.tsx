@@ -1,7 +1,7 @@
 import { useTable, ShowButton, EditButton, List } from "@refinedev/antd";
 import { Table, Tag, Button, Space, Popconfirm, message, Grid, Dropdown } from "antd";
 import { PlusOutlined, CheckOutlined, StopOutlined, MoreOutlined } from "@ant-design/icons";
-import { useNavigation } from "@refinedev/core";
+import { useNavigation, useGetIdentity } from "@refinedev/core";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { useBreakpoint } = Grid;
@@ -9,6 +9,8 @@ const { useBreakpoint } = Grid;
 export const TextLinkList = () => {
   const { tableProps, tableQuery } = useTable({ resource: "text-links", syncWithLocation: true });
   const { create, show, edit } = useNavigation();
+  const { data: identity } = useGetIdentity<{ role: string }>();
+  const isAdmin = identity?.role === "admin";
   const screens = useBreakpoint();
 
   const statusColors: Record<string, string> = {
@@ -28,40 +30,42 @@ export const TextLinkList = () => {
     }
   };
 
-  const renderMobileActions = (record: any) => (
-    <Dropdown
-      menu={{
-        items: [
-          { key: "show", label: "View", onClick: () => show("text-links", record._id) },
-          { key: "edit", label: "Edit", onClick: () => edit("text-links", record._id) },
-          {
-            key: "toggle",
-            label: record.status === "active" ? "Disable" : "Enable",
-            danger: record.status === "active",
-            onClick: () => handleToggle(record._id),
-          },
-        ],
-      }}
-      trigger={["click"]}
-    >
-      <Button size="small" icon={<MoreOutlined />} />
-    </Dropdown>
-  );
+  const renderMobileActions = (record: any) => {
+    const items: any[] = [
+      { key: "show", label: "View", onClick: () => show("text-links", record._id) },
+      { key: "edit", label: "Edit", onClick: () => edit("text-links", record._id) },
+    ];
+    if (isAdmin) {
+      items.push({
+        key: "toggle",
+        label: record.status === "active" ? "Disable" : "Enable",
+        danger: record.status === "active",
+        onClick: () => handleToggle(record._id),
+      });
+    }
+    return (
+      <Dropdown menu={{ items }} trigger={["click"]}>
+        <Button size="small" icon={<MoreOutlined />} />
+      </Dropdown>
+    );
+  };
 
   const renderDesktopActions = (record: any) => (
     <Space size={4}>
       <ShowButton size="small" recordItemId={record._id} hideText />
       <EditButton size="small" recordItemId={record._id} hideText />
-      <Popconfirm
-        title={record.status === "active" ? "Disable this link?" : "Enable this link?"}
-        onConfirm={() => handleToggle(record._id)}
-      >
-        <Button
-          size="small"
-          icon={record.status === "active" ? <StopOutlined /> : <CheckOutlined />}
-          danger={record.status === "active"}
-        />
-      </Popconfirm>
+      {isAdmin && (
+        <Popconfirm
+          title={record.status === "active" ? "Disable this link?" : "Enable this link?"}
+          onConfirm={() => handleToggle(record._id)}
+        >
+          <Button
+            size="small"
+            icon={record.status === "active" ? <StopOutlined /> : <CheckOutlined />}
+            danger={record.status === "active"}
+          />
+        </Popconfirm>
+      )}
     </Space>
   );
 

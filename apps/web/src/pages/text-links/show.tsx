@@ -1,4 +1,4 @@
-import { useShow, useNavigation } from "@refinedev/core";
+import { useShow, useNavigation, useGetIdentity } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
 import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid } from "antd";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
@@ -13,11 +13,13 @@ export const TextLinkShow = () => {
   const record = query?.data?.data as any;
   const [searchParams] = useSearchParams();
   const { list } = useNavigation();
+  const { data: identity } = useGetIdentity<{ role: string }>();
+  const isAdmin = identity?.role === "admin";
   const screens = useBreakpoint();
 
   useEffect(() => {
     const action = searchParams.get("action");
-    if (action === "approve" && record?._id && record?.status === "pending") {
+    if (action === "approve" && record?._id && record?.status === "pending" && isAdmin) {
       handleToggle();
     }
   }, [record]);
@@ -58,15 +60,15 @@ export const TextLinkShow = () => {
       isLoading={query?.isLoading}
       headerButtons={
         <Space wrap>
-          {record?.status === "pending" && (
+          {isAdmin && record?.status === "pending" && (
             <Button type="primary" onClick={handleToggle}>Approve</Button>
           )}
-          {record?.status === "active" && (
+          {isAdmin && record?.status === "active" && (
             <Popconfirm title="Disable this link?" onConfirm={handleToggle}>
               <Button danger>Disable</Button>
             </Popconfirm>
           )}
-          {record?.status === "disabled" && (
+          {isAdmin && record?.status === "disabled" && (
             <Button onClick={handleToggle}>Enable</Button>
           )}
           <Popconfirm title="Delete this link permanently?" onConfirm={handleDelete}>
@@ -100,51 +102,55 @@ export const TextLinkShow = () => {
         </Descriptions.Item>
       </Descriptions>
 
-      <Title level={5} style={{ marginTop: 24 }}>Deployments</Title>
-      <Table
-        dataSource={deployments}
-        rowKey="_id"
-        size="small"
-        pagination={false}
-        scroll={{ x: 400 }}
-      >
-        <Table.Column
-          title="Website"
-          dataIndex="websiteId"
-          ellipsis
-          render={(w: any) => (typeof w === "object" ? w.domain : w)}
-        />
-        <Table.Column
-          dataIndex="status"
-          title="Status"
-          width={90}
-          render={(s: string) => (
-            <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>{s}</Tag>
-          )}
-        />
-        {screens.sm && (
-          <Table.Column
-            dataIndex="deployedAt"
-            title="Deployed"
-            render={(v) => (v ? new Date(v).toLocaleString() : "-")}
-          />
-        )}
-        {screens.md && (
-          <Table.Column
-            dataIndex="lastVerifiedAt"
-            title="Last Verified"
-            render={(v) => (v ? new Date(v).toLocaleString() : "-")}
-          />
-        )}
-        {screens.md && (
-          <Table.Column
-            dataIndex="errorMessage"
-            title="Error"
-            ellipsis
-            render={(v) => v || "-"}
-          />
-        )}
-      </Table>
+      {isAdmin && (
+        <>
+          <Title level={5} style={{ marginTop: 24 }}>Deployments</Title>
+          <Table
+            dataSource={deployments}
+            rowKey="_id"
+            size="small"
+            pagination={false}
+            scroll={{ x: 400 }}
+          >
+            <Table.Column
+              title="Website"
+              dataIndex="websiteId"
+              ellipsis
+              render={(w: any) => (typeof w === "object" ? w.domain : w)}
+            />
+            <Table.Column
+              dataIndex="status"
+              title="Status"
+              width={90}
+              render={(s: string) => (
+                <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>{s}</Tag>
+              )}
+            />
+            {screens.sm && (
+              <Table.Column
+                dataIndex="deployedAt"
+                title="Deployed"
+                render={(v) => (v ? new Date(v).toLocaleString() : "-")}
+              />
+            )}
+            {screens.md && (
+              <Table.Column
+                dataIndex="lastVerifiedAt"
+                title="Last Verified"
+                render={(v) => (v ? new Date(v).toLocaleString() : "-")}
+              />
+            )}
+            {screens.md && (
+              <Table.Column
+                dataIndex="errorMessage"
+                title="Error"
+                ellipsis
+                render={(v) => v || "-"}
+              />
+            )}
+          </Table>
+        </>
+      )}
     </Show>
   );
 };

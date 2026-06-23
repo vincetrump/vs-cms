@@ -1,5 +1,6 @@
 import { Create, useForm } from "@refinedev/antd";
-import { Form, Input, DatePicker, Select } from "antd";
+import { useGetIdentity } from "@refinedev/core";
+import { Form, Input, DatePicker, Select, Alert } from "antd";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
 
 export const TextLinkCreate = () => {
@@ -7,9 +8,19 @@ export const TextLinkCreate = () => {
     resource: "text-links",
     action: "create",
   });
+  const { data: identity } = useGetIdentity<{ role: string }>();
+  const isAdmin = identity?.role === "admin";
 
   return (
     <Create saveButtonProps={saveButtonProps}>
+      {!isAdmin && (
+        <Alert
+          message="Link sẽ được tạo ở trạng thái Disabled và cần Admin phê duyệt để kích hoạt."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Form {...formProps} layout="vertical">
         <Form.Item label="Title" name="title" rules={[{ required: true }]}>
           <Input placeholder="e.g. Partner A Campaign" />
@@ -37,9 +48,11 @@ export const TextLinkCreate = () => {
         <Form.Item label="Expiration Date" name="expiresAt">
           <DatePicker style={{ width: "100%" }} showTime />
         </Form.Item>
-        <Form.Item label="Deploy to Websites" name="websiteIds">
-          <WebsiteSelector />
-        </Form.Item>
+        {isAdmin && (
+          <Form.Item label="Deploy to Websites" name="websiteIds">
+            <WebsiteSelector />
+          </Form.Item>
+        )}
       </Form>
     </Create>
   );

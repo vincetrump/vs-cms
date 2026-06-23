@@ -1,4 +1,5 @@
 import { Edit, useForm } from "@refinedev/antd";
+import { useGetIdentity } from "@refinedev/core";
 import { Form, Input, DatePicker, Select } from "antd";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
 import dayjs from "dayjs";
@@ -8,6 +9,8 @@ export const TextLinkEdit = () => {
     resource: "text-links",
     action: "edit",
   });
+  const { data: identity } = useGetIdentity<{ role: string }>();
+  const isAdmin = identity?.role === "admin";
 
   const record = query?.data?.data as any;
   const deployedWebsiteIds = record?.deployments
@@ -47,9 +50,11 @@ export const TextLinkEdit = () => {
         >
           <DatePicker style={{ width: "100%" }} showTime />
         </Form.Item>
-        <Form.Item label="Deploy to Websites" name="websiteIds" initialValue={deployedWebsiteIds}>
-          <WebsiteSelector />
-        </Form.Item>
+        {isAdmin && (
+          <Form.Item label="Deploy to Websites" name="websiteIds" initialValue={deployedWebsiteIds}>
+            <WebsiteSelector />
+          </Form.Item>
+        )}
       </Form>
     </Edit>
   );

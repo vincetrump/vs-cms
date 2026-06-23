@@ -2,9 +2,12 @@ import { Controller, Get, Param, Query, Res, UseGuards, NotFoundException } from
 import { Response } from 'express';
 import { JobsService } from './jobs.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @Controller('jobs')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class JobsController {
   constructor(private jobsService: JobsService) {}
 
