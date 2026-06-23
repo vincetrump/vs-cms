@@ -1,0 +1,147 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+
+@Injectable()
+export class DiscordService {
+  private readonly logger = new Logger(DiscordService.name);
+  private readonly webhookUrl: string;
+  private readonly adminUrl: string;
+
+  constructor(private configService: ConfigService) {
+    this.webhookUrl = this.configService.get<string>('discord.webhookUrl', '');
+    this.adminUrl = this.configService.get<string>('app.adminUrl', 'http://localhost:5173');
+  }
+
+  async sendNewLinkNotification(link: any) {
+    const embed = {
+      title: '🔗 New Text Link Created',
+      color: 0x3498db,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Anchor Text', value: link.anchorText, inline: true },
+        { name: 'Target URL', value: link.targetUrl },
+        { name: 'Source', value: link.source, inline: true },
+        { name: 'Status', value: link.status, inline: true },
+        { name: 'Expires', value: link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : 'Never', inline: true },
+      ],
+      footer: { text: `ID: ${link._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    if (link.status === 'pending') {
+      embed.fields.push({
+        name: 'Actions',
+        value: `[✅ Approve](${this.adminUrl}/text-links/show/${link._id}?action=approve) | [❌ Reject](${this.adminUrl}/text-links/show/${link._id}?action=reject)`,
+      });
+    }
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendUpdateNotification(link: any, changes: Record<string, { old: any; new: any }>) {
+    const changeLines = Object.entries(changes)
+      .map(([key, val]) => `**${key}**: \`${val.old}\` → \`${val.new}\``)
+      .join('\n');
+
+    const embed = {
+      title: '✏️ Text Link Updated',
+      color: 0xf39c12,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Link ID', value: String(link._id), inline: true },
+        { name: 'Changes', value: changeLines || 'No field changes' },
+      ],
+      footer: { text: `ID: ${link._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendStatusChangeNotification(link: any, oldStatus: string, newStatus: string) {
+    const colorMap: Record<string, number> = {
+      active: 0x2ecc71,
+      disabled: 0xe74c3c,
+      expired: 0x95a5a6,
+      pending: 0xf39c12,
+    };
+
+    const embed = {
+      title: '🔄 Text Link Status Changed',
+      color: colorMap[newStatus] || 0x3498db,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Status Change', value: `\`${oldStatus}\` → \`${newStatus}\``, inline: true },
+        { name: 'Target URL', value: link.targetUrl },
+      ],
+      footer: { text: `ID: ${link._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendDeploymentNotification(link: any, results: any[]) {
+    const success = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+
+    const embed = {
+      title: '🚀 Text Link Deployed',
+      color: failed === 0 ? 0x2ecc71 : 0xf39c12,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Target', value: link.targetUrl, inline: true },
+        { name: 'Results', value: `✅ ${success} succeeded | ❌ ${failed} failed` },
+        { name: 'Websites', value: results.map((r) => `${r.success ? '✅' : '❌'} ${r.domain}`).join('\n') || 'None' },
+      ],
+      footer: { text: `ID: ${link._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendDeleteNotification(link: any) {
+    const embed = {
+      title: '🗑️ Text Link Deleted',
+      color: 0xe74c3c,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Target URL', value: link.targetUrl, inline: true },
+      ],
+      footer: { text: `ID: ${link._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendExpirationNotification(links: any[]) {
+    const embed = {
+      title: '⏰ Text Links Expired',
+      color: 0x95a5a6,
+      description: `${links.length} text link(s) have expired and been removed.`,
+      fields: links.slice(0, 10).map((l) => ({
+        name: l.title,
+        value: `${l.targetUrl} | Expired: ${new Date(l.expiresAt).toLocaleDateString()}`,
+      })),
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  private async sendWebhook(payload: any) {
+    if (!this.webhookUrl) {
+      this.logger.warn('Discord webhook URL not configured');
+      return;
+    }
+
+    try {
+      await axios.post(this.webhookUrl, payload);
+    } catch (err: any) {
+      this.logger.error(`Discord webhook failed: ${err.message}`);
+    }
+  }
+}

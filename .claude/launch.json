@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "/Users/vthaing/.nvm/versions/node/v20.19.5/bin/node",
+      "runtimeArgs": ["../../node_modules/.bin/vite", "--port", "5173"],
+      "port": 5173,
+      "cwd": "apps/web"
+    }
+  ]
+}

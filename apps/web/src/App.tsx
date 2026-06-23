@@ -1,0 +1,121 @@
+import { Refine, Authenticated } from "@refinedev/core";
+import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinedev/antd";
+import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router";
+import { ConfigProvider, App as AntdApp } from "antd";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, SettingOutlined, HistoryOutlined } from "@ant-design/icons";
+
+import "@refinedev/antd/dist/reset.css";
+import "./styles/responsive.css";
+
+import { authProvider } from "./providers/authProvider";
+import { dataProvider } from "./providers/dataProvider";
+
+import { LoginPage } from "./pages/login";
+import { DashboardPage } from "./pages/dashboard";
+import { WebsiteList } from "./pages/websites/list";
+import { WebsiteShow } from "./pages/websites/show";
+import { TextLinkList } from "./pages/text-links/list";
+import { TextLinkCreate } from "./pages/text-links/create";
+import { TextLinkEdit } from "./pages/text-links/edit";
+import { TextLinkShow } from "./pages/text-links/show";
+import { ApiKeyList } from "./pages/api-keys/list";
+import { ApiKeyCreate } from "./pages/api-keys/create";
+import { SettingsPage } from "./pages/settings";
+import { JobList } from "./pages/jobs/list";
+import { JobShow } from "./pages/jobs/show";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <ConfigProvider theme={RefineThemes.Blue}>
+        <AntdApp>
+          <Refine
+            routerProvider={routerProvider}
+            dataProvider={dataProvider}
+            authProvider={authProvider}
+            notificationProvider={useNotificationProvider}
+            resources={[
+              {
+                name: "dashboard",
+                list: "/",
+                meta: { label: "Dashboard", icon: <DashboardOutlined /> },
+              },
+              {
+                name: "websites",
+                list: "/websites",
+                show: "/websites/show/:id",
+                meta: { icon: <GlobalOutlined /> },
+              },
+              {
+                name: "text-links",
+                list: "/text-links",
+                create: "/text-links/create",
+                edit: "/text-links/edit/:id",
+                show: "/text-links/show/:id",
+                meta: { label: "Text Links", icon: <LinkOutlined /> },
+              },
+              {
+                name: "api-keys",
+                list: "/api-keys",
+                create: "/api-keys/create",
+                meta: { label: "API Keys", icon: <KeyOutlined /> },
+              },
+              {
+                name: "jobs",
+                list: "/jobs",
+                show: "/jobs/show/:id",
+                meta: { label: "Jobs", icon: <HistoryOutlined /> },
+              },
+            ]}
+            options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
+          >
+            <Routes>
+              <Route
+                element={
+                  <Authenticated key="auth" fallback={<CatchAllNavigate to="/login" />}>
+                    <ThemedLayoutV2 Title={() => <span style={{ fontSize: 18, fontWeight: 700 }}>VS-CMS</span>}>
+                      <Outlet />
+                    </ThemedLayoutV2>
+                  </Authenticated>
+                }
+              >
+                <Route index element={<DashboardPage />} />
+                <Route path="/websites">
+                  <Route index element={<WebsiteList />} />
+                  <Route path="show/:id" element={<WebsiteShow />} />
+                </Route>
+                <Route path="/text-links">
+                  <Route index element={<TextLinkList />} />
+                  <Route path="create" element={<TextLinkCreate />} />
+                  <Route path="edit/:id" element={<TextLinkEdit />} />
+                  <Route path="show/:id" element={<TextLinkShow />} />
+                </Route>
+                <Route path="/api-keys">
+                  <Route index element={<ApiKeyList />} />
+                  <Route path="create" element={<ApiKeyCreate />} />
+                </Route>
+                <Route path="/jobs">
+                  <Route index element={<JobList />} />
+                  <Route path="show/:id" element={<JobShow />} />
+                </Route>
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
+              <Route
+                element={
+                  <Authenticated key="auth" fallback={<Outlet />}>
+                    <NavigateToResource resource="dashboard" />
+                  </Authenticated>
+                }
+              >
+                <Route path="/login" element={<LoginPage />} />
+              </Route>
+            </Routes>
+          </Refine>
+        </AntdApp>
+      </ConfigProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;

@@ -1,0 +1,19 @@
+{
+  "name": "vs-cms",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=@vs-cms/api",
+    "dev:web": "npm run dev --workspace=@vs-cms/web",
+    "build:api": "npm run build --workspace=@vs-cms/api",
+    "build:web": "npm run build --workspace=@vs-cms/web",
+    "build": "npm run build --workspaces --if-present",
+    "seed": "npm run seed -w @vs-cms/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

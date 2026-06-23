@@ -1,0 +1,61 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: vs-cms
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongo
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/vs-cms
+      JWT_SECRET: ${JWT_SECRET:-vs-cms-change-this-to-a-random-64-char-string-in-production}
+      JWT_EXPIRATION: 24h
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-vs-cms-totp-key-change-me-32chars}
+      SSH_PRIVATE_KEY_PATH: /root/.ssh/id_rsa
+      SSH_DEFAULT_SERVER: 68.183.188.19
+      SSH_DEFAULT_USER: root
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      API_PORT: "3001"
+      ADMIN_URL: ${ADMIN_URL:-http://localhost:5173}
+    volumes:
+      - ${SSH_KEY_PATH:-~/.ssh/id_rsa}:/root/.ssh/id_rsa:ro
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      - mongo
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/vs-cms
+      JWT_SECRET: unused
+      TOTP_ENCRYPTION_KEY: vs-cms-totp-key-change-me-32chars
+    command: [ "node", "dist/seed.js" ]
+    profiles:
+      - seed
+
+volumes:
+  mongo-data:

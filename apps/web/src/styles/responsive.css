@@ -1,0 +1,41 @@
+@media (max-width: 768px) {
+  .ant-layout-content {
+    padding: 12px 12px 12px 12px !important;
+  }
+  .ant-layout-has-sider > .ant-layout > .ant-layout-content {
+    padding-top: 8px !important;
+  }
+  .ant-page-header {
+    padding-left: 36px !important;
+  }
+  .ant-page-header-heading {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+  .ant-page-header-heading-extra {
+    margin: 0 !important;
+    width: 100%;
+  }
+  .ant-page-header-heading-extra > * {
+    width: 100%;
+  }
+  .ant-layout-has-sider > button {
+    top: 12px !important;
+    left: 4px !important;
+    z-index: 100;
+  }
+  .ant-descriptions-item-label {
+    width: 110px !important;
+    min-width: 110px !important;
+  }
+  .ant-card-body {
+    padding: 12px !important;
+  }
+  .ant-table-cell {
+    padding: 8px 6px !important;
+  }
+  .ant-table-thead > tr > th {
+    white-space: nowrap;
+  }
+}

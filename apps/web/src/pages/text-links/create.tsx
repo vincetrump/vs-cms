@@ -1,0 +1,32 @@
+import { Create, useForm } from "@refinedev/antd";
+import { Form, Input, DatePicker } from "antd";
+import { WebsiteSelector } from "../../components/WebsiteSelector";
+
+export const TextLinkCreate = () => {
+  const { formProps, saveButtonProps } = useForm({
+    resource: "text-links",
+    action: "create",
+  });
+
+  return (
+    <Create saveButtonProps={saveButtonProps}>
+      <Form {...formProps} layout="vertical">
+        <Form.Item label="Title" name="title" rules={[{ required: true }]}>
+          <Input placeholder="e.g. Partner A Campaign" />
+        </Form.Item>
+        <Form.Item label="Anchor Text" name="anchorText" rules={[{ required: true }]}>
+          <Input placeholder="Visible link text" />
+        </Form.Item>
+        <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]}>
+          <Input placeholder="https://example.com" />
+        </Form.Item>
+        <Form.Item label="Expiration Date" name="expiresAt">
+          <DatePicker style={{ width: "100%" }} showTime />
+        </Form.Item>
+        <Form.Item label="Deploy to Websites" name="websiteIds">
+          <WebsiteSelector />
+        </Form.Item>
+      </Form>
+    </Create>
+  );
+};
