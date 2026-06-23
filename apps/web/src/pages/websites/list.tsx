@@ -2,22 +2,27 @@ import { useTable, ShowButton, List } from "@refinedev/antd";
 import { Table, Tag, Button, Grid } from "antd";
 import { SyncOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
-import { useState } from "react";
+import { useJobPolling } from "../../hooks/useJobPolling";
 
 const { useBreakpoint } = Grid;
 
 export const WebsiteList = () => {
-  const { tableProps } = useTable({ resource: "websites", syncWithLocation: true });
-  const [syncing, setSyncing] = useState(false);
+  const { tableProps, tableQuery } = useTable({ resource: "websites", syncWithLocation: true });
   const screens = useBreakpoint();
 
+  const { startPolling, isPolling } = useJobPolling({
+    successMessage: "Website sync completed",
+    failedMessage: "Website sync failed",
+    onComplete: () => tableQuery.refetch(),
+    onFailed: () => tableQuery.refetch(),
+  });
+
   const handleSync = async () => {
-    setSyncing(true);
     try {
-      await axiosInstance.post(`${API_URL}/websites/sync`);
-      window.location.reload();
-    } finally {
-      setSyncing(false);
+      const { data } = await axiosInstance.post(`${API_URL}/websites/sync`);
+      startPolling(data.jobId);
+    } catch {
+      // error handled by axios interceptor
     }
   };
 
@@ -30,8 +35,8 @@ export const WebsiteList = () => {
   return (
     <List
       headerButtons={
-        <Button type="primary" icon={<SyncOutlined />} onClick={handleSync} loading={syncing}>
-          {screens.sm ? "Sync from Cloudflare" : "Sync"}
+        <Button type="primary" icon={<SyncOutlined />} onClick={handleSync} loading={isPolling}>
+          {isPolling ? (screens.sm ? "Syncing..." : "...") : screens.sm ? "Sync from Cloudflare" : "Sync"}
         </Button>
       }
     >

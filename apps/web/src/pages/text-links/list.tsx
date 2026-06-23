@@ -7,7 +7,7 @@ import { axiosInstance, API_URL } from "../../providers/dataProvider";
 const { useBreakpoint } = Grid;
 
 export const TextLinkList = () => {
-  const { tableProps } = useTable({ resource: "text-links", syncWithLocation: true });
+  const { tableProps, tableQuery } = useTable({ resource: "text-links", syncWithLocation: true });
   const { create, show, edit } = useNavigation();
   const screens = useBreakpoint();
 
@@ -22,7 +22,7 @@ export const TextLinkList = () => {
     try {
       await axiosInstance.post(`${API_URL}/text-links/${id}/toggle`);
       message.success("Status updated");
-      window.location.reload();
+      tableQuery.refetch();
     } catch {
       message.error("Failed to toggle status");
     }

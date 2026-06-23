@@ -7,7 +7,7 @@ import { axiosInstance, API_URL } from "../../providers/dataProvider";
 const { useBreakpoint } = Grid;
 
 export const ApiKeyList = () => {
-  const { tableProps } = useTable({ resource: "api-keys", syncWithLocation: true });
+  const { tableProps, tableQuery } = useTable({ resource: "api-keys", syncWithLocation: true });
   const { create } = useNavigation();
   const screens = useBreakpoint();
 
@@ -15,7 +15,7 @@ export const ApiKeyList = () => {
     try {
       await axiosInstance.patch(`${API_URL}/api-keys/${id}/deactivate`);
       message.success("API key deactivated");
-      window.location.reload();
+      tableQuery.refetch();
     } catch {
       message.error("Failed");
     }
@@ -25,7 +25,7 @@ export const ApiKeyList = () => {
     try {
       await axiosInstance.delete(`${API_URL}/api-keys/${id}`);
       message.success("API key deleted");
-      window.location.reload();
+      tableQuery.refetch();
     } catch {
       message.error("Failed");
     }
