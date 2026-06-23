@@ -1,6 +1,7 @@
 import { useShow, useNavigation, useGetIdentity } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
 import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid } from "antd";
+import { EditOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useSearchParams } from "react-router";
 import { useEffect } from "react";
@@ -12,7 +13,7 @@ export const TextLinkShow = () => {
   const { query } = useShow({ resource: "text-links" });
   const record = query?.data?.data as any;
   const [searchParams] = useSearchParams();
-  const { list } = useNavigation();
+  const { list, edit } = useNavigation();
   const { data: identity } = useGetIdentity<{ role: string }>();
   const isAdmin = identity?.role === "admin";
   const screens = useBreakpoint();
@@ -60,6 +61,9 @@ export const TextLinkShow = () => {
       isLoading={query?.isLoading}
       headerButtons={
         <Space wrap>
+          <Button icon={<EditOutlined />} onClick={() => record?._id && edit("text-links", record._id)}>
+            Edit
+          </Button>
           {isAdmin && record?.status === "pending" && (
             <Button type="primary" onClick={handleToggle}>Approve</Button>
           )}
