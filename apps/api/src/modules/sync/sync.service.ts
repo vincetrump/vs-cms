@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CloudflareService } from '../cloudflare/cloudflare.service';
 import { SshService } from '../ssh/ssh.service';
 import { WebsitesService } from '../websites/websites.service';
@@ -7,13 +8,17 @@ import { LinkDeploymentsService } from '../link-deployments/link-deployments.ser
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
+  private readonly defaultServer: string;
 
   constructor(
     private cloudflareService: CloudflareService,
     private sshService: SshService,
     private websitesService: WebsitesService,
     private linkDeploymentsService: LinkDeploymentsService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.defaultServer = this.configService.get<string>('ssh.defaultServer', '68.183.188.19');
+  }
 
   async syncWebsites() {
     this.logger.log('Starting website sync...');
@@ -43,11 +48,16 @@ export class SyncService {
           status = homepagePath ? 'active' : 'not_configured';
         }
 
+        const dns = await this.checkDns(zone.id, zone.name);
+
         await this.websitesService.upsertByDomain(zone.name, {
           cloudflareZoneId: zone.id,
           documentRoot: docRoot || null,
           homepagePath,
           status,
+          dnsStatus: dns.status,
+          dnsRecordIps: dns.ips,
+          dnsProxied: dns.proxied,
         });
 
         synced++;
@@ -81,6 +91,43 @@ export class SyncService {
 
     this.logger.log(`Verification done: ${verified} ok, ${failures} failed`);
     return { verified, failures };
+  }
+
+  private async checkDns(
+    zoneId: string,
+    domain: string,
+  ): Promise<{ status: string; ips: string[]; proxied: boolean | null }> {
+    try {
+      const records = await this.cloudflareService.getDnsRecords(zoneId);
+      const rootRecords = records.filter(
+        (r) => r.name === domain || r.name === `www.${domain}`,
+      );
+
+      if (!rootRecords.length) {
+        return { status: 'no_records', ips: [], proxied: null };
+      }
+
+      const aRecords = rootRecords.filter((r) => r.type === 'A' || r.type === 'AAAA');
+      const cnameRecords = rootRecords.filter((r) => r.type === 'CNAME');
+
+      const ips = aRecords.map((r) => r.content);
+      const proxied = rootRecords.some((r) => r.proxied) ? true : false;
+
+      if (cnameRecords.length && !aRecords.length) {
+        return { status: 'cname', ips: cnameRecords.map((r) => r.content), proxied };
+      }
+
+      const pointsToServer = ips.some((ip) => ip === this.defaultServer);
+
+      if (pointsToServer) {
+        return { status: 'ok', ips, proxied };
+      }
+
+      return { status: 'mismatch', ips, proxied };
+    } catch (err: any) {
+      this.logger.error(`DNS check failed for ${domain}: ${err.message}`);
+      return { status: 'error', ips: [], proxied: null };
+    }
   }
 
   private findDocRoot(domain: string, docRoots: Map<string, string>): string | null {

@@ -23,6 +23,15 @@ export class Website {
   @Prop({ default: 'not_configured' })
   status: string;
 
+  @Prop({ type: String, default: null })
+  dnsStatus: string | null;
+
+  @Prop({ type: [String], default: [] })
+  dnsRecordIps: string[];
+
+  @Prop({ type: Boolean, default: null })
+  dnsProxied: boolean | null;
+
   @Prop({ type: Date, default: null })
   lastSyncedAt: Date | null;
 }
