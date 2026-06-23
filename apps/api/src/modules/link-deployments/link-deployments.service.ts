@@ -38,6 +38,12 @@ export class LinkDeploymentsService {
       .exec();
   }
 
+  async findPreviouslyDeployed(textLinkId: string) {
+    return this.deploymentModel
+      .find({ textLinkId, status: 'removed' })
+      .exec();
+  }
+
   async deployToWebsites(textLinkId: string, websiteIds: string[]) {
     const link = await this.textLinksService.findById(textLinkId);
     if (!link) throw new Error('Text link not found');
@@ -57,7 +63,7 @@ export class LinkDeploymentsService {
           try {
             await this.sshService.backupFile(website.homepagePath, website.serverIp);
             const html = await this.sshService.readFile(website.homepagePath, website.serverIp);
-            const linkHtml = this.buildLinkHtml(textLinkId, link.anchorText, link.targetUrl, link.title);
+            const linkHtml = this.buildLinkHtml(textLinkId, link.anchorText, link.targetUrl, link.title, link.rel);
             const newHtml = this.insertLink(html, linkHtml);
             await this.sshService.writeFile(website.homepagePath, newHtml, website.serverIp);
 
@@ -138,7 +144,7 @@ export class LinkDeploymentsService {
         await this.sshService.backupFile(website.homepagePath, website.serverIp);
         let html = await this.sshService.readFile(website.homepagePath, website.serverIp);
         html = this.removeLink(html, textLinkId);
-        const linkHtml = this.buildLinkHtml(textLinkId, link.anchorText, link.targetUrl, link.title);
+        const linkHtml = this.buildLinkHtml(textLinkId, link.anchorText, link.targetUrl, link.title, link.rel);
         html = this.insertLink(html, linkHtml);
         await this.sshService.writeFile(website.homepagePath, html, website.serverIp);
       } catch (err: any) {
@@ -185,28 +191,167 @@ export class LinkDeploymentsService {
   }
 
   async scanWebsiteForLinks(websiteId: string): Promise<string[]> {
+    const result = await this.scanWebsiteFull(websiteId);
+    return result.vsCmsIds;
+  }
+
+  async scanWebsiteFull(websiteId: string): Promise<{
+    vsCmsIds: string[];
+    externalLinks: Array<{ url: string; anchorText: string }>;
+  }> {
     const website = await this.websitesService.findById(websiteId);
-    if (!website?.homepagePath) return [];
+    if (!website?.homepagePath) return { vsCmsIds: [], externalLinks: [] };
 
     try {
       const html = await this.sshService.readFile(website.homepagePath, website.serverIp);
-      const regex = /<!-- vs-cms:([a-f0-9]+) -->/g;
-      const ids: string[] = [];
+
+      const vsCmsRegex = /<!-- vs-cms:([a-f0-9]+) -->/g;
+      const vsCmsIds: string[] = [];
       let match;
-      while ((match = regex.exec(html)) !== null) {
-        ids.push(match[1]);
+      while ((match = vsCmsRegex.exec(html)) !== null) {
+        vsCmsIds.push(match[1]);
       }
-      return ids;
+
+      const externalLinks = this.extractExternalLinks(html, website.domain);
+
+      return { vsCmsIds, externalLinks };
     } catch {
-      return [];
+      return { vsCmsIds: [], externalLinks: [] };
     }
   }
 
-  private buildLinkHtml(linkId: string, anchorText: string, targetUrl: string, title: string): string {
+  async reconcileWebsiteLinks(websiteId: string): Promise<{
+    added: number;
+    removed: number;
+    verified: number;
+    orphaned: number;
+    deployedCount: number;
+    externalLinks: Array<{ url: string; anchorText: string }>;
+  }> {
+    const scan = await this.scanWebsiteFull(websiteId);
+    const foundIds = scan.vsCmsIds;
+    const foundSet = new Set(foundIds);
+
+    const allDeployments = await this.deploymentModel.find({ websiteId }).exec();
+    const deploymentMap = new Map<string, LinkDeploymentDocument>();
+    for (const d of allDeployments) {
+      deploymentMap.set(d.textLinkId.toString(), d);
+    }
+
+    let added = 0;
+    let removed = 0;
+    let verified = 0;
+    let orphaned = 0;
+
+    for (const linkId of foundIds) {
+      const existing = deploymentMap.get(linkId);
+
+      if (existing) {
+        if (existing.status !== 'deployed') {
+          await this.deploymentModel.findByIdAndUpdate(existing._id, {
+            status: 'deployed',
+            lastVerifiedAt: new Date(),
+            errorMessage: null,
+          });
+          added++;
+        } else {
+          await this.deploymentModel.findByIdAndUpdate(existing._id, {
+            lastVerifiedAt: new Date(),
+          });
+          verified++;
+        }
+      } else {
+        const textLink = await this.textLinksService.findById(linkId);
+        if (textLink) {
+          await this.deploymentModel.findOneAndUpdate(
+            { textLinkId: linkId, websiteId },
+            {
+              status: 'deployed',
+              deployedAt: new Date(),
+              lastVerifiedAt: new Date(),
+              errorMessage: null,
+            },
+            { upsert: true },
+          );
+          added++;
+        } else {
+          orphaned++;
+        }
+      }
+    }
+
+    for (const [linkId, deployment] of deploymentMap) {
+      if (deployment.status === 'deployed' && !foundSet.has(linkId)) {
+        await this.deploymentModel.findByIdAndUpdate(deployment._id, {
+          status: 'failed',
+          errorMessage: 'Link not found on website during reconciliation',
+        });
+        removed++;
+      }
+    }
+
+    const deployedCount = await this.deploymentModel
+      .countDocuments({ websiteId, status: 'deployed' })
+      .exec();
+
+    return { added, removed, verified, orphaned, deployedCount, externalLinks: scan.externalLinks };
+  }
+
+  private extractExternalLinks(
+    html: string,
+    domain: string,
+  ): Array<{ url: string; anchorText: string }> {
+    const cleanHtml = html.replace(
+      /<!-- vs-cms:[a-f0-9]+ -->[\s\S]*?<!-- \/vs-cms:[a-f0-9]+ -->/g,
+      '',
+    );
+
+    const linkRegex = /<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    const links: Array<{ url: string; anchorText: string }> = [];
+    const seen = new Set<string>();
+    let match;
+
+    while ((match = linkRegex.exec(cleanHtml)) !== null) {
+      const url = match[1].trim();
+      const anchorText = match[2].replace(/<[^>]*>/g, '').trim();
+
+      if (
+        !url.startsWith('http://') &&
+        !url.startsWith('https://') &&
+        !url.startsWith('//')
+      ) {
+        continue;
+      }
+
+      try {
+        const parsed = new URL(url, `https://${domain}`);
+        const host = parsed.hostname.toLowerCase();
+        if (
+          host === domain ||
+          host === `www.${domain}` ||
+          host.endsWith(`.${domain}`)
+        ) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      if (seen.has(url)) continue;
+      seen.add(url);
+
+      links.push({ url, anchorText: anchorText || url });
+    }
+
+    return links;
+  }
+
+  private buildLinkHtml(linkId: string, anchorText: string, targetUrl: string, title: string, rel?: string | null): string {
     const safeAnchor = anchorText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const safeTitle = title.replace(/"/g, '&quot;');
     const safeUrl = targetUrl.replace(/"/g, '&quot;');
-    return `<!-- vs-cms:${linkId} --><a href="${safeUrl}" title="${safeTitle}">${safeAnchor}</a><!-- /vs-cms:${linkId} -->`;
+    const relAttr = rel ? ` rel="${rel.replace(/"/g, '&quot;')}"` : '';
+    return `<!-- vs-cms:${linkId} --><a href="${safeUrl}" title="${safeTitle}" target="_blank"${relAttr}>${safeAnchor}</a><!-- /vs-cms:${linkId} -->`;
   }
 
   private insertLink(html: string, linkHtml: string): string {
@@ -216,10 +361,10 @@ export class LinkDeploymentsService {
     if (match) {
       const existing = match[1];
       const newContent = existing.trimEnd() + '\n' + linkHtml;
-      return html.replace(divRegex, `<div id="vs-cms-links">${newContent}\n</div>`);
+      return html.replace(divRegex, `<div id="vs-cms-links" style="display:none">${newContent}\n</div>`);
     }
 
-    const section = `<div id="vs-cms-links">\n${linkHtml}\n</div>`;
+    const section = `<div id="vs-cms-links" style="display:none">\n${linkHtml}\n</div>`;
     if (html.includes('</body>')) {
       return html.replace('</body>', `${section}\n</body>`);
     }

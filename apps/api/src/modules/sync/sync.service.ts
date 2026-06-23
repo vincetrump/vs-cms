@@ -68,7 +68,51 @@ export class SyncService {
     }
 
     this.logger.log(`Sync completed: ${synced} synced, ${errors} errors`);
-    return { total: zones.length, synced, errors };
+
+    const activeWebsites = await this.websitesService.findAllActive();
+    let reconciled = 0;
+    let reconcileAdded = 0;
+    let reconcileRemoved = 0;
+    let reconcileOrphaned = 0;
+
+    let totalExternalLinks = 0;
+
+    for (const website of activeWebsites) {
+      try {
+        const result = await this.linkDeploymentsService.reconcileWebsiteLinks(
+          website._id.toString(),
+        );
+        reconcileAdded += result.added;
+        reconcileRemoved += result.removed;
+        reconcileOrphaned += result.orphaned;
+        reconciled++;
+
+        await this.websitesService.updateScanResults(website._id.toString(), {
+          externalLinks: result.externalLinks,
+          deployedLinkCount: result.deployedCount,
+        });
+        totalExternalLinks += result.externalLinks.length;
+      } catch (err: any) {
+        this.logger.error(
+          `Reconcile failed for ${website.domain}: ${err.message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Reconciliation: ${reconciled} websites, +${reconcileAdded} added, -${reconcileRemoved} removed, ${reconcileOrphaned} orphaned, ${totalExternalLinks} external links found`,
+    );
+
+    return {
+      total: zones.length,
+      synced,
+      errors,
+      reconciled,
+      reconcileAdded,
+      reconcileRemoved,
+      reconcileOrphaned,
+      totalExternalLinks,
+    };
   }
 
   async verifyAllDeployments() {

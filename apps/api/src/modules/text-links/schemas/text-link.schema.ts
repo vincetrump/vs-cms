@@ -23,6 +23,9 @@ export class TextLink {
   @Prop({ type: Types.ObjectId, default: null })
   apiKeyId: Types.ObjectId | null;
 
+  @Prop({ type: String, default: null })
+  rel: string | null;
+
   @Prop({ type: Date, default: null })
   expiresAt: Date | null;
 }

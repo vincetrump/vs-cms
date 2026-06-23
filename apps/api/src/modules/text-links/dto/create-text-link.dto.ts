@@ -11,6 +11,10 @@ export class CreateTextLinkDto {
   targetUrl: string;
 
   @IsOptional()
+  @IsString()
+  rel?: string;
+
+  @IsOptional()
   @IsDateString()
   expiresAt?: string;
 

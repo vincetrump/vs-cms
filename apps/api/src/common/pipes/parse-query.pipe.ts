@@ -28,6 +28,15 @@ export class ParseQueryPipe implements PipeTransform {
       if (key.startsWith('_')) continue;
       if (key === 'id') {
         filter._id = value;
+      } else if (key === 'domains' && typeof value === 'string') {
+        const domains = value
+          .split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean);
+        if (domains.length) {
+          filter.domain = { $in: domains };
+        }
+        continue;
       } else if (key.endsWith('_gte')) {
         filter[key.replace('_gte', '')] = { ...filter[key.replace('_gte', '')], $gte: value };
       } else if (key.endsWith('_lte')) {

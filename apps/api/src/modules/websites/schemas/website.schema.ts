@@ -32,6 +32,15 @@ export class Website {
   @Prop({ type: Boolean, default: null })
   dnsProxied: boolean | null;
 
+  @Prop({ type: Number, default: 0 })
+  deployedLinkCount: number;
+
+  @Prop({
+    type: [{ url: { type: String }, anchorText: { type: String }, _id: false }],
+    default: [],
+  })
+  externalLinks: Array<{ url: string; anchorText: string }>;
+
   @Prop({ type: Date, default: null })
   lastSyncedAt: Date | null;
 }

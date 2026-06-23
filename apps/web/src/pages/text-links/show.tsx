@@ -89,6 +89,9 @@ export const TextLinkShow = () => {
             {record?.targetUrl}
           </a>
         </Descriptions.Item>
+        <Descriptions.Item label="Rel">
+          {record?.rel ? <Tag>{record.rel}</Tag> : <Tag color="default">not set</Tag>}
+        </Descriptions.Item>
         <Descriptions.Item label="Expires">
           {record?.expiresAt ? new Date(record.expiresAt).toLocaleString() : "Never"}
         </Descriptions.Item>

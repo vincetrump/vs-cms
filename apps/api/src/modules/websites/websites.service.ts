@@ -47,6 +47,20 @@ export class WebsitesService {
     return this.websiteModel.findByIdAndUpdate(id, { status }, { new: true });
   }
 
+  async updateScanResults(
+    id: string,
+    data: {
+      externalLinks: Array<{ url: string; anchorText: string }>;
+      deployedLinkCount: number;
+    },
+  ) {
+    return this.websiteModel.findByIdAndUpdate(
+      id,
+      { $set: data },
+      { new: true },
+    );
+  }
+
   async count() {
     return this.websiteModel.countDocuments().exec();
   }

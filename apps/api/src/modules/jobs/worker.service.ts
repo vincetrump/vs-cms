@@ -97,6 +97,18 @@ export class WorkerService implements OnModuleInit {
     await this.jobsService.addLog(jobId, 'info', 'Fetching zones from Cloudflare...');
     const result = await this.syncService.syncWebsites();
     await this.jobsService.addLog(jobId, 'info', `Synced ${result.synced}/${result.total} websites, ${result.errors} errors`);
+    if (result.reconciled > 0) {
+      await this.jobsService.addLog(
+        jobId,
+        'info',
+        `Reconciled ${result.reconciled} websites: +${result.reconcileAdded} added, -${result.reconcileRemoved} removed, ${result.reconcileOrphaned} orphaned`,
+      );
+      await this.jobsService.addLog(
+        jobId,
+        'info',
+        `Found ${result.totalExternalLinks} external links across all websites`,
+      );
+    }
     return result;
   }
 

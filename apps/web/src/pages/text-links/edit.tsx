@@ -1,5 +1,5 @@
 import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, DatePicker } from "antd";
+import { Form, Input, DatePicker, Select } from "antd";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
 import dayjs from "dayjs";
 
@@ -25,6 +25,20 @@ export const TextLinkEdit = () => {
         </Form.Item>
         <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]}>
           <Input />
+        </Form.Item>
+        <Form.Item label="Rel Attribute" name="rel" tooltip="e.g. nofollow, sponsored, ugc — leave empty for dofollow">
+          <Select
+            allowClear
+            placeholder="Not set (dofollow)"
+            options={[
+              { label: "nofollow", value: "nofollow" },
+              { label: "sponsored", value: "sponsored" },
+              { label: "nofollow sponsored", value: "nofollow sponsored" },
+              { label: "ugc", value: "ugc" },
+              { label: "noopener", value: "noopener" },
+              { label: "nofollow noopener", value: "nofollow noopener" },
+            ]}
+          />
         </Form.Item>
         <Form.Item
           label="Expiration Date"

@@ -50,6 +50,7 @@ export class TextLinksController {
       title: dto.title,
       anchorText: dto.anchorText,
       targetUrl: dto.targetUrl,
+      rel: dto.rel || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       status: 'active',
       source: 'admin',
@@ -83,11 +84,12 @@ export class TextLinksController {
     if (dto.title) updateData.title = dto.title;
     if (dto.anchorText) updateData.anchorText = dto.anchorText;
     if (dto.targetUrl) updateData.targetUrl = dto.targetUrl;
+    if (dto.rel !== undefined) updateData.rel = dto.rel || null;
     if (dto.expiresAt !== undefined) updateData.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
 
     const updated = await this.textLinksService.update(id, updateData);
 
-    if (dto.anchorText || dto.targetUrl) {
+    if (dto.anchorText || dto.targetUrl || dto.rel !== undefined) {
       await this.jobsService.create('redeploy_link', { textLinkId: id });
     }
 
@@ -158,7 +160,14 @@ export class TextLinksController {
       await this.discordService.sendStatusChangeNotification(updated!, 'active', 'disabled');
       return updated;
     } else if (link.status === 'disabled') {
+      const deployments = await this.linkDeploymentsService.findPreviouslyDeployed(id);
       const updated = await this.textLinksService.update(id, { status: 'active' });
+      if (deployments.length) {
+        await this.jobsService.create('deploy_links', {
+          textLinkId: id,
+          websiteIds: deployments.map((d) => d.websiteId.toString()),
+        });
+      }
       await this.discordService.sendStatusChangeNotification(updated!, 'disabled', 'active');
       return updated;
     } else if (link.status === 'pending') {

@@ -1,7 +1,7 @@
 import { useShow } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
-import { Descriptions, Tag, Grid, Space } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined } from "@ant-design/icons";
+import { Descriptions, Tag, Grid, Space, Table, Typography } from "antd";
+import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, LinkOutlined } from "@ant-design/icons";
 
 const { useBreakpoint } = Grid;
 
@@ -50,10 +50,40 @@ export const WebsiteShow = () => {
         <Descriptions.Item label="Cloudflare Zone ID" span={screens.md ? 2 : 1}>
           <span style={{ wordBreak: "break-all" }}>{record?.cloudflareZoneId || "-"}</span>
         </Descriptions.Item>
+        <Descriptions.Item label="External Links">
+          <Tag color={record?.externalLinks?.length ? "orange" : "green"} icon={<LinkOutlined />}>
+            {record?.externalLinks?.length || 0}
+          </Tag>
+        </Descriptions.Item>
         <Descriptions.Item label="Last Synced">
           {record?.lastSyncedAt ? new Date(record.lastSyncedAt).toLocaleString() : "Never"}
         </Descriptions.Item>
       </Descriptions>
+
+      {record?.externalLinks?.length > 0 && (
+        <>
+          <Typography.Title level={5} style={{ marginTop: 24 }}>
+            External Links ({record.externalLinks.length})
+          </Typography.Title>
+          <Table
+            dataSource={record.externalLinks}
+            rowKey="url"
+            size="small"
+            pagination={record.externalLinks.length > 10 ? { pageSize: 10 } : false}
+          >
+            <Table.Column
+              title="URL"
+              dataIndex="url"
+              render={(url: string) => (
+                <Typography.Link href={url} target="_blank" rel="noopener noreferrer" ellipsis style={{ maxWidth: 500 }}>
+                  {url}
+                </Typography.Link>
+              )}
+            />
+            <Table.Column title="Anchor Text" dataIndex="anchorText" ellipsis />
+          </Table>
+        </>
+      )}
     </Show>
   );
 };

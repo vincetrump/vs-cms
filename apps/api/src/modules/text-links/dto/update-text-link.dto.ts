@@ -14,6 +14,10 @@ export class UpdateTextLinkDto {
   targetUrl?: string;
 
   @IsOptional()
+  @IsString()
+  rel?: string;
+
+  @IsOptional()
   @IsDateString()
   expiresAt?: string;
 
