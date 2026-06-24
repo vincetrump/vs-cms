@@ -8,6 +8,8 @@ COPY apps/web/package.json ./apps/web/
 RUN npm ci --workspace=@vs-cms/web --workspace=@vs-cms/shared --include-workspace-root
 
 FROM base AS builder
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/shared ./packages/shared

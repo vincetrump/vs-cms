@@ -13,6 +13,10 @@ async function bootstrap() {
   const adminUrl = configService.get<string>('app.adminUrl', 'http://localhost:5173');
 
   app.use(helmet());
+  app.use((_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
+    next();
+  });
 
   app.enableCors({
     origin: [adminUrl],
