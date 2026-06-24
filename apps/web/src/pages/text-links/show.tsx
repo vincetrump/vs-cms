@@ -44,6 +44,13 @@ export const TextLinkShow = () => {
     expired: "default",
   };
 
+  const statusLabels: Record<string, string> = {
+    active: "Hoạt động",
+    pending: "Chờ duyệt",
+    disabled: "Đã tắt",
+    expired: "Hết hạn",
+  };
+
   const statusHints: Record<string, string> = {
     active: "Link đang hoạt động và đã được deploy trên websites.",
     pending: "Link đang chờ admin duyệt. Nội dung trên websites (nếu có) vẫn giữ nguyên phiên bản cũ cho đến khi được approve.",
@@ -102,7 +109,7 @@ export const TextLinkShow = () => {
         <Descriptions.Item label="Title">{record?.title}</Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tooltip title={statusHints[record?.status]}>
-            <Tag color={statusColors[record?.status]}>{record?.status}</Tag>
+            <Tag color={statusColors[record?.status]}>{statusLabels[record?.status] || record?.status}</Tag>
             <InfoCircleOutlined style={{ color: "#999", fontSize: 12, marginLeft: 4 }} />
           </Tooltip>
         </Descriptions.Item>
@@ -165,7 +172,9 @@ export const TextLinkShow = () => {
               title="Status"
               width={90}
               render={(s: string) => (
-                <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>{s}</Tag>
+                <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>
+                  {s === "deployed" ? "Đã deploy" : s === "failed" ? "Lỗi" : s === "removed" ? "Đã gỡ" : s}
+                </Tag>
               )}
             />
             {screens.sm && (

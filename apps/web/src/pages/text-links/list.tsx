@@ -20,6 +20,13 @@ export const TextLinkList = () => {
     expired: "default",
   };
 
+  const statusLabels: Record<string, string> = {
+    active: "Hoạt động",
+    pending: "Chờ duyệt",
+    disabled: "Đã tắt",
+    expired: "Hết hạn",
+  };
+
   const statusHints: Record<string, string> = {
     active: "Đang deploy trên websites",
     pending: "Chờ admin duyệt",
@@ -130,14 +137,14 @@ export const TextLinkList = () => {
           width={screens.sm ? 90 : 70}
           render={(status: string) => (
             <Tooltip title={statusHints[status]}>
-              <Tag color={statusColors[status]}>{status}</Tag>
+              <Tag color={statusColors[status]}>{statusLabels[status] || status}</Tag>
             </Tooltip>
           )}
           filters={[
-            { text: "Active", value: "active" },
-            { text: "Pending", value: "pending" },
-            { text: "Disabled", value: "disabled" },
-            { text: "Expired", value: "expired" },
+            { text: "Hoạt động", value: "active" },
+            { text: "Chờ duyệt", value: "pending" },
+            { text: "Đã tắt", value: "disabled" },
+            { text: "Hết hạn", value: "expired" },
           ]}
         />
         {screens.sm && (
