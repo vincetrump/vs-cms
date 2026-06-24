@@ -123,12 +123,20 @@ export class TextLinksController {
         changes.expiresAt = { old: oldExp || 'Never', new: newExp || 'Never' };
     }
 
+    if (dto.websiteIds) {
+      const oldIds = ((existing as any).requestedWebsiteIds || []).map(String).sort().join(',');
+      const newIds = [...dto.websiteIds].sort().join(',');
+      if (oldIds !== newIds)
+        changes.websites = { old: `${((existing as any).requestedWebsiteIds || []).length} websites`, new: `${dto.websiteIds.length} websites` };
+    }
+
     const updateData: any = {};
     if (dto.title) updateData.title = dto.title;
     if (dto.anchorText) updateData.anchorText = dto.anchorText;
     if (dto.targetUrl) updateData.targetUrl = dto.targetUrl;
     if (dto.rel !== undefined) updateData.rel = dto.rel || null;
     if (dto.expiresAt !== undefined) updateData.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (dto.websiteIds) updateData.requestedWebsiteIds = dto.websiteIds;
 
     const updated = await this.textLinksService.update(id, updateData);
 

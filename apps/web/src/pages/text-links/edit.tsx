@@ -20,6 +20,9 @@ export const TextLinkEdit = () => {
   const deployedWebsiteIds = record?.deployments
     ?.filter((d: any) => d.status === "deployed")
     ?.map((d: any) => d.websiteId?._id || d.websiteId) || [];
+  const initialWebsiteIds = deployedWebsiteIds.length > 0
+    ? deployedWebsiteIds
+    : record?.requestedWebsiteIds || [];
 
   return (
     <Edit saveButtonProps={saveButtonProps}>
@@ -67,7 +70,7 @@ export const TextLinkEdit = () => {
           </Col>
         </Row>
         {isAdmin && (
-          <Form.Item label="Deploy to Websites" name="websiteIds" initialValue={deployedWebsiteIds}>
+          <Form.Item label="Deploy to Websites" name="websiteIds" initialValue={initialWebsiteIds}>
             <WebsiteSelector />
           </Form.Item>
         )}
