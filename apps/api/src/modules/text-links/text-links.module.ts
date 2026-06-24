@@ -14,7 +14,7 @@ import { WebsitesModule } from '../websites/websites.module';
     forwardRef(() => LinkDeploymentsModule),
     forwardRef(() => JobsModule),
     DiscordModule,
-    WebsitesModule,
+    forwardRef(() => WebsitesModule),
   ],
   providers: [TextLinksService],
   controllers: [TextLinksController],
