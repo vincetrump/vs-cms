@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useTable, ShowButton, List } from "@refinedev/antd";
-import { useGo } from "@refinedev/core";
 import { Table, Tag, Button, Grid, Tooltip, Input, Space } from "antd";
 import {
   SyncOutlined,
@@ -12,6 +11,8 @@ import {
   SearchOutlined,
   ClearOutlined,
 } from "@ant-design/icons";
+import { useNavigate } from "react-router";
+import qs from "qs";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useJobPolling } from "../../hooks/useJobPolling";
 
@@ -33,7 +34,7 @@ function parseDomains(input: string): string[] {
 
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
-  const go = useGo();
+  const navigate = useNavigate();
 
   const { tableProps, tableQuery, filters } = useTable({
     resource: "websites",
@@ -60,14 +61,11 @@ export const WebsiteList = () => {
   const handleSearch = () => {
     const domains = parseDomains(searchText);
     if (domains.length) {
-      go({
-        type: "replace",
-        query: {
-          pageSize: 10,
-          current: 1,
-          filters: [{ field: "domains", operator: "eq", value: domains.join(",") }],
-        },
-      });
+      const query = qs.stringify(
+        { pageSize: 10, current: 1, filters: [{ field: "domains", operator: "eq", value: domains.join(",") }] },
+        { addQueryPrefix: true, encode: false, arrayFormat: "indices" as const },
+      );
+      navigate(`/websites${query}`, { replace: true });
     } else {
       handleClear();
     }
@@ -75,10 +73,7 @@ export const WebsiteList = () => {
 
   const handleClear = () => {
     setSearchText("");
-    go({
-      type: "replace",
-      query: { pageSize: 10, current: 1 },
-    });
+    navigate("/websites?pageSize=10&current=1", { replace: true });
   };
 
   const hasFilter = filters?.some((f: any) => f.field === "domains");
