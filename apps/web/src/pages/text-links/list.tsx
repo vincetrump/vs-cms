@@ -1,5 +1,5 @@
 import { useTable, ShowButton, EditButton, List } from "@refinedev/antd";
-import { Table, Tag, Button, Space, Popconfirm, message, Grid, Dropdown } from "antd";
+import { Table, Tag, Button, Space, Popconfirm, message, Grid, Dropdown, Tooltip } from "antd";
 import { PlusOutlined, CheckOutlined, StopOutlined, MoreOutlined } from "@ant-design/icons";
 import { useNavigation, useGetIdentity } from "@refinedev/core";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
@@ -18,6 +18,13 @@ export const TextLinkList = () => {
     pending: "gold",
     disabled: "red",
     expired: "default",
+  };
+
+  const statusHints: Record<string, string> = {
+    active: "Đang deploy trên websites",
+    pending: "Chờ admin duyệt",
+    disabled: "Đã gỡ khỏi websites",
+    expired: "Hết hạn, đã tự động gỡ",
   };
 
   const handleToggle = async (id: string) => {
@@ -56,7 +63,12 @@ export const TextLinkList = () => {
       <EditButton size="small" recordItemId={record._id} hideText />
       {isAdmin && (
         <Popconfirm
-          title={record.status === "active" ? "Disable this link?" : "Enable this link?"}
+          title={record.status === "active" ? "Disable link này?" : record.status === "pending" ? "Approve link này?" : "Enable link này?"}
+          description={
+            record.status === "active" ? "Gỡ khỏi tất cả websites" :
+            record.status === "pending" ? "Deploy/redeploy nội dung lên websites" :
+            "Deploy lại lên websites trước đó"
+          }
           onConfirm={() => handleToggle(record._id)}
         >
           <Button
@@ -116,7 +128,11 @@ export const TextLinkList = () => {
           dataIndex="status"
           title="Status"
           width={screens.sm ? 90 : 70}
-          render={(status: string) => <Tag color={statusColors[status]}>{status}</Tag>}
+          render={(status: string) => (
+            <Tooltip title={statusHints[status]}>
+              <Tag color={statusColors[status]}>{status}</Tag>
+            </Tooltip>
+          )}
           filters={[
             { text: "Active", value: "active" },
             { text: "Pending", value: "pending" },

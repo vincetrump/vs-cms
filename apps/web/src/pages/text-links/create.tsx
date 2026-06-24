@@ -20,7 +20,7 @@ export const TextLinkCreate = () => {
     <Create saveButtonProps={saveButtonProps}>
       {!isAdmin && (
         <Alert
-          message="Link sẽ được tạo ở trạng thái Disabled và cần Admin phê duyệt để kích hoạt."
+          message="Link sẽ được tạo ở trạng thái Pending và cần Admin duyệt trước khi deploy lên websites."
           type="info"
           showIcon
           style={{ marginBottom: 16 }}

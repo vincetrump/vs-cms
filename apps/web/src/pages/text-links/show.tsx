@@ -1,7 +1,7 @@
 import { useShow, useNavigation, useGetIdentity } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
-import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid, Tooltip } from "antd";
+import { EditOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { Title } = Typography;
@@ -44,6 +44,13 @@ export const TextLinkShow = () => {
     expired: "default",
   };
 
+  const statusHints: Record<string, string> = {
+    active: "Link đang hoạt động và đã được deploy trên websites.",
+    pending: "Link đang chờ admin duyệt. Nội dung trên websites (nếu có) vẫn giữ nguyên phiên bản cũ cho đến khi được approve.",
+    disabled: "Link đã bị tắt và đã được gỡ khỏi tất cả websites.",
+    expired: "Link đã hết hạn và tự động được gỡ khỏi websites bởi hệ thống.",
+  };
+
   const deployments = record?.deployments || [];
 
   return (
@@ -55,17 +62,37 @@ export const TextLinkShow = () => {
             Edit
           </Button>
           {isAdmin && record?.status === "pending" && (
-            <Button type="primary" onClick={handleToggle}>Approve</Button>
+            <Popconfirm
+              title="Approve link này?"
+              description="Link sẽ chuyển sang Active. Nội dung mới sẽ được deploy/redeploy lên các websites."
+              onConfirm={handleToggle}
+            >
+              <Button type="primary">Approve</Button>
+            </Popconfirm>
           )}
           {isAdmin && record?.status === "active" && (
-            <Popconfirm title="Disable this link?" onConfirm={handleToggle}>
+            <Popconfirm
+              title="Disable link này?"
+              description="Link sẽ bị gỡ khỏi tất cả websites ngay lập tức."
+              onConfirm={handleToggle}
+            >
               <Button danger>Disable</Button>
             </Popconfirm>
           )}
           {isAdmin && record?.status === "disabled" && (
-            <Button onClick={handleToggle}>Enable</Button>
+            <Popconfirm
+              title="Enable link này?"
+              description="Link sẽ được deploy lại lên các websites trước đó."
+              onConfirm={handleToggle}
+            >
+              <Button>Enable</Button>
+            </Popconfirm>
           )}
-          <Popconfirm title="Delete this link permanently?" onConfirm={handleDelete}>
+          <Popconfirm
+            title="Xoá link này vĩnh viễn?"
+            description="Link sẽ bị gỡ khỏi websites (nếu đang deploy) và không thể khôi phục."
+            onConfirm={handleDelete}
+          >
             <Button danger>Delete</Button>
           </Popconfirm>
         </Space>
@@ -74,7 +101,10 @@ export const TextLinkShow = () => {
       <Descriptions bordered column={screens.md ? 2 : 1} size={screens.sm ? "default" : "small"}>
         <Descriptions.Item label="Title">{record?.title}</Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={statusColors[record?.status]}>{record?.status}</Tag>
+          <Tooltip title={statusHints[record?.status]}>
+            <Tag color={statusColors[record?.status]}>{record?.status}</Tag>
+            <InfoCircleOutlined style={{ color: "#999", fontSize: 12, marginLeft: 4 }} />
+          </Tooltip>
         </Descriptions.Item>
         <Descriptions.Item label="Anchor Text">{record?.anchorText}</Descriptions.Item>
         <Descriptions.Item label="Source">
