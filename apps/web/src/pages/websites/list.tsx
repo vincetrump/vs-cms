@@ -35,6 +35,7 @@ export const WebsiteList = () => {
 
   const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
     resource: "websites",
+    syncWithLocation: false,
   });
   const screens = useBreakpoint();
 
