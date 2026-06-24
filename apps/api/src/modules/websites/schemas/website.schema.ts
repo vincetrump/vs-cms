@@ -11,6 +11,9 @@ export class Website {
   @Prop({ type: String, default: null })
   cloudflareZoneId: string | null;
 
+  @Prop({ type: String, default: null })
+  cloudflareAccountId: string | null;
+
   @Prop({ default: '68.183.188.19' })
   serverIp: string;
 

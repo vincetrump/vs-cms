@@ -10,13 +10,15 @@ import {
   LinkOutlined,
   SearchOutlined,
   ClearOutlined,
+  CloudOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useJobPolling } from "../../hooks/useJobPolling";
 
 const { useBreakpoint } = Grid;
 
-function parseDomains(input: string): string[] {
+function parseSearchTerms(input: string): string[] {
   return input
     .split(/[,\n]+/)
     .map((d) =>
@@ -66,7 +68,7 @@ export const WebsiteList = () => {
   };
 
   const handleSearch = async () => {
-    const domains = parseDomains(searchText);
+    const domains = parseSearchTerms(searchText);
     if (!domains.length) {
       handleClear();
       return;
@@ -121,7 +123,7 @@ export const WebsiteList = () => {
     >
       <Space.Compact style={{ width: "100%", marginBottom: 12 }}>
         <Input
-          placeholder="Search domains (comma separated)"
+          placeholder="Search domains (partial match, comma separated)"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onPressEnter={handleSearch}
@@ -215,9 +217,33 @@ export const WebsiteList = () => {
         )}
         <Table.Column
           title=""
-          width={50}
+          width={screens.sm ? 130 : 50}
           render={(_, record: any) => (
-            <ShowButton size="small" recordItemId={record._id} hideText />
+            <Space size={4}>
+              {screens.sm && record.cloudflareZoneId && (
+                <>
+                  <Tooltip title="Cloudflare DNS">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<CloudOutlined />}
+                      href={`https://dash.cloudflare.com/${record.cloudflareAccountId || ""}/${record.domain}/dns/records`}
+                      target="_blank"
+                    />
+                  </Tooltip>
+                  <Tooltip title="Cloudflare Cache">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ThunderboltOutlined />}
+                      href={`https://dash.cloudflare.com/${record.cloudflareAccountId || ""}/${record.domain}/caching/configuration`}
+                      target="_blank"
+                    />
+                  </Tooltip>
+                </>
+              )}
+              <ShowButton size="small" recordItemId={record._id} hideText />
+            </Space>
           )}
         />
       </Table>

@@ -52,6 +52,7 @@ export class SyncService {
 
         await this.websitesService.upsertByDomain(zone.name, {
           cloudflareZoneId: zone.id,
+          cloudflareAccountId: zone.accountId || null,
           documentRoot: docRoot || null,
           homepagePath,
           status,

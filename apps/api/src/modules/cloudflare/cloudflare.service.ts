@@ -6,6 +6,7 @@ interface CloudflareZone {
   id: string;
   name: string;
   status: string;
+  accountId: string;
 }
 
 interface CloudflareDnsRecord {
@@ -48,6 +49,7 @@ export class CloudflareService {
             id: z.id,
             name: z.name,
             status: z.status,
+            accountId: z.account?.id || '',
           })),
         );
 

@@ -44,10 +44,12 @@ export class ParseQueryPipe implements PipeTransform {
       } else if (key === 'domains' && typeof value === 'string') {
         const domains = value
           .split(',')
-          .map((d) => d.trim().toLowerCase())
+          .map((d) => d.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
           .filter(Boolean);
-        if (domains.length) {
-          filter.domain = { $in: domains };
+        if (domains.length === 1) {
+          filter.domain = { $regex: domains[0], $options: 'i' };
+        } else if (domains.length > 1) {
+          filter.domain = { $regex: domains.join('|'), $options: 'i' };
         }
         continue;
       } else if (key.endsWith('_gte')) {
