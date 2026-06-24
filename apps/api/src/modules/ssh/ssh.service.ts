@@ -84,29 +84,50 @@ export class SshService implements OnModuleDestroy {
     return promise;
   }
 
+  private reconnect(serverIp?: string): void {
+    const ip = serverIp || this.configService.get<string>('ssh.defaultServer', '');
+    const conn = this.connections.get(ip);
+    if (conn) {
+      conn.end();
+      this.connections.delete(ip);
+    }
+  }
+
   async executeCommand(command: string, serverIp?: string): Promise<string> {
-    const conn = await this.getConnection(serverIp);
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Command timeout')), 30000);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const conn = await this.getConnection(serverIp);
+      try {
+        return await new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Command timeout')), 30000);
 
-      conn.exec(command, (err, stream) => {
-        if (err) { clearTimeout(timeout); return reject(err); }
+          conn.exec(command, (err, stream) => {
+            if (err) { clearTimeout(timeout); return reject(err); }
 
-        let stdout = '';
-        let stderr = '';
+            let stdout = '';
+            let stderr = '';
 
-        stream.on('close', () => {
-          clearTimeout(timeout);
-          if (stderr && !stdout) {
-            this.logger.warn(`SSH stderr: ${stderr.trim()}`);
-          }
-          resolve(stdout);
+            stream.on('close', () => {
+              clearTimeout(timeout);
+              if (stderr && !stdout) {
+                this.logger.warn(`SSH stderr: ${stderr.trim()}`);
+              }
+              resolve(stdout);
+            });
+
+            stream.on('data', (data: Buffer) => { stdout += data.toString(); });
+            stream.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+          });
         });
-
-        stream.on('data', (data: Buffer) => { stdout += data.toString(); });
-        stream.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
-      });
-    });
+      } catch (err: any) {
+        if (attempt === 0 && err?.message?.includes('Channel open failure')) {
+          this.logger.warn(`SSH channel failure, reconnecting to ${serverIp}`);
+          this.reconnect(serverIp);
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('SSH executeCommand failed after retry');
   }
 
   async readFile(filePath: string, serverIp?: string): Promise<string> {
@@ -116,17 +137,27 @@ export class SshService implements OnModuleDestroy {
 
   async writeFile(filePath: string, content: string, serverIp?: string): Promise<void> {
     const safe = this.validatePath(filePath);
-    const conn = await this.getConnection(serverIp);
-    return new Promise((resolve, reject) => {
-      conn.sftp((err, sftp) => {
-        if (err) return reject(err);
-
-        const writeStream = sftp.createWriteStream(safe);
-        writeStream.on('close', () => resolve());
-        writeStream.on('error', reject);
-        writeStream.end(content, 'utf8');
-      });
-    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const conn = await this.getConnection(serverIp);
+      try {
+        return await new Promise<void>((resolve, reject) => {
+          conn.sftp((err, sftp) => {
+            if (err) return reject(err);
+            const writeStream = sftp.createWriteStream(safe);
+            writeStream.on('close', () => resolve());
+            writeStream.on('error', reject);
+            writeStream.end(content, 'utf8');
+          });
+        });
+      } catch (err: any) {
+        if (attempt === 0 && err?.message?.includes('Channel open failure')) {
+          this.logger.warn(`SSH SFTP channel failure, reconnecting to ${serverIp}`);
+          this.reconnect(serverIp);
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   async backupFile(filePath: string, serverIp?: string): Promise<string> {
