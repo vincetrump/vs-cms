@@ -6,10 +6,12 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const { Title } = Typography;
 
-function getRedirectUrl(token: string, requireTotpSetup?: boolean): string {
-  if (requireTotpSetup) return "/setup-totp";
+function getRedirectUrl(token: string, opts?: { requireTotpSetup?: boolean; requirePasswordChange?: boolean }): string {
+  if (opts?.requirePasswordChange) return "/change-password";
+  if (opts?.requireTotpSetup) return "/setup-totp";
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
+    if (payload.mustChangePassword) return "/change-password";
     if (payload.role === "sale") return "/text-links";
   } catch {}
   return "/";
@@ -31,7 +33,10 @@ export const LoginPage = () => {
         setStep("totp");
       } else {
         localStorage.setItem("token", data.accessToken);
-        window.location.href = getRedirectUrl(data.accessToken, data.requireTotpSetup);
+        window.location.href = getRedirectUrl(data.accessToken, {
+          requireTotpSetup: data.requireTotpSetup,
+          requirePasswordChange: data.requirePasswordChange,
+        });
       }
     } catch {
       setError("Invalid credentials");
@@ -50,7 +55,9 @@ export const LoginPage = () => {
         { headers: { Authorization: `Bearer ${partialToken}` } },
       );
       localStorage.setItem("token", data.accessToken);
-      window.location.href = getRedirectUrl(data.accessToken);
+      window.location.href = getRedirectUrl(data.accessToken, {
+        requirePasswordChange: data.requirePasswordChange,
+      });
     } catch {
       setError("Invalid TOTP code");
     } finally {

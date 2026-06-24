@@ -19,6 +19,7 @@ import { ExternalApiModule } from './modules/external-api/external-api.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { DashboardController } from './modules/dashboard/dashboard.controller';
 import { TotpSetupGuard } from './common/guards/totp-setup.guard';
+import { PasswordChangeGuard } from './common/guards/password-change.guard';
 
 @Module({
   imports: [
@@ -47,6 +48,10 @@ import { TotpSetupGuard } from './common/guards/totp-setup.guard';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PasswordChangeGuard,
     },
     {
       provide: APP_GUARD,

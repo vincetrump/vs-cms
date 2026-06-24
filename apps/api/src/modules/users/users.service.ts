@@ -27,9 +27,21 @@ export class UsersService {
     return this.userModel.findById(id);
   }
 
-  async create(username: string, password: string, role = 'admin'): Promise<UserDocument> {
+  async create(username: string, password: string, role = 'admin', mustChangePassword = false): Promise<UserDocument> {
     const passwordHash = await bcrypt.hash(password, 12);
-    return this.userModel.create({ username, passwordHash, role });
+    return this.userModel.create({ username, passwordHash, role, mustChangePassword });
+  }
+
+  async findAll(): Promise<UserDocument[]> {
+    return this.userModel.find().sort({ createdAt: -1 });
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await this.userModel.findByIdAndDelete(id);
+  }
+
+  async clearMustChangePassword(userId: string): Promise<void> {
+    await this.userModel.findByIdAndUpdate(userId, { mustChangePassword: false });
   }
 
   async validatePassword(user: UserDocument, password: string): Promise<boolean> {

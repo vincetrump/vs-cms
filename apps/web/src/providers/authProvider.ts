@@ -12,6 +12,9 @@ export const authProvider: AuthProvider = {
           { headers: { Authorization: `Bearer ${partialToken}` } },
         );
         localStorage.setItem("token", data.accessToken);
+        if (data.requirePasswordChange) {
+          return { success: true, redirectTo: "/change-password" };
+        }
         return { success: true, redirectTo: "/" };
       } catch {
         throw { name: "Error", message: "Invalid TOTP code" };
@@ -31,6 +34,9 @@ export const authProvider: AuthProvider = {
     }
 
     localStorage.setItem("token", data.accessToken);
+    if (data.requirePasswordChange) {
+      return { success: true, redirectTo: "/change-password" };
+    }
     if (data.requireTotpSetup) {
       return { success: true, redirectTo: "/setup-totp" };
     }
@@ -68,7 +74,7 @@ export const authProvider: AuthProvider = {
       const { data } = await axios.get(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      return { id: data.id, name: data.username, role: data.role, totpEnabled: data.totpEnabled };
+      return { id: data.id, name: data.username, role: data.role, totpEnabled: data.totpEnabled, mustChangePassword: data.mustChangePassword };
     } catch {
       return null;
     }

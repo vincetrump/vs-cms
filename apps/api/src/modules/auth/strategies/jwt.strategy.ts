@@ -18,6 +18,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload.totpVerified) {
       throw new UnauthorizedException('TOTP verification required');
     }
-    return { sub: payload.sub, username: payload.username, role: payload.role, totpEnabled: !!payload.totpEnabled };
+    return {
+      sub: payload.sub,
+      username: payload.username,
+      role: payload.role,
+      totpEnabled: !!payload.totpEnabled,
+      mustChangePassword: !!payload.mustChangePassword,
+    };
   }
 }

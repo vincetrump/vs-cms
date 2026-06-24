@@ -20,6 +20,12 @@ axiosInstance.interceptors.response.use(
       localStorage.removeItem("token");
       window.location.href = "/login";
     }
+    if (error?.response?.status === 403) {
+      const msg = error?.response?.data?.message || "";
+      if (msg.includes("Password change required")) {
+        window.location.href = "/change-password";
+      }
+    }
     return Promise.reject(error);
   },
 );

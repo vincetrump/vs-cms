@@ -3,7 +3,7 @@ import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinede
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined, TeamOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -27,6 +27,17 @@ import { JobList } from "./pages/jobs/list";
 import { JobShow } from "./pages/jobs/show";
 import { SetupTotpPage } from "./pages/setup-totp";
 import { GuideList } from "./pages/guides/list";
+import { ChangePasswordPage } from "./pages/change-password";
+import { UserList } from "./pages/users/list";
+
+const PasswordChangeGuard = () => {
+  const { data: identity, isLoading } = useGetIdentity<{ mustChangePassword: boolean }>();
+  if (isLoading) return null;
+  if (identity && identity.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+  return <Outlet />;
+};
 
 const TotpGuard = () => {
   const { data: identity, isLoading } = useGetIdentity<{ totpEnabled: boolean }>();
@@ -116,6 +127,11 @@ function App() {
                 meta: { label: "Jobs", icon: <HistoryOutlined /> },
               },
               {
+                name: "users",
+                list: "/users",
+                meta: { label: "Users", icon: <TeamOutlined /> },
+              },
+              {
                 name: "settings",
                 list: "/settings",
                 meta: { label: "Settings", icon: <SettingOutlined /> },
@@ -136,15 +152,17 @@ function App() {
                   </Authenticated>
                 }
               >
+                <Route path="/change-password" element={<ChangePasswordPage />} />
                 <Route path="/setup-totp" element={<SetupTotpPage />} />
               </Route>
               <Route
                 element={
                   <Authenticated key="auth" fallback={<CatchAllNavigate to="/login" />}>
-                    <TotpGuard />
+                    <PasswordChangeGuard />
                   </Authenticated>
                 }
               >
+              <Route element={<TotpGuard />}>
                 <Route
                   element={
                     <ThemedLayoutV2 Title={() => <span style={{ fontSize: 18, fontWeight: 700 }}>VS-CMS</span>}>
@@ -172,9 +190,11 @@ function App() {
                   <Route index element={<JobList />} />
                   <Route path="show/:id" element={<JobShow />} />
                 </Route>
+                <Route path="/users" element={<UserList />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/guides" element={<GuideList />} />
                 </Route>
+              </Route>
               </Route>
               <Route
                 element={

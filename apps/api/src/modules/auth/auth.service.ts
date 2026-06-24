@@ -16,7 +16,11 @@ export class AuthService {
 
     if (dbUser.totpEnabled) {
       const partialToken = this.jwtService.sign(
-        { sub: user.sub, username: user.username, role: user.role, totpVerified: false, totpEnabled: true },
+        {
+          sub: user.sub, username: user.username, role: user.role,
+          totpVerified: false, totpEnabled: true,
+          mustChangePassword: !!dbUser.mustChangePassword,
+        },
         { expiresIn: '5m' },
       );
       return { requireTotp: true, partialToken };
@@ -28,8 +32,14 @@ export class AuthService {
       role: user.role,
       totpVerified: true,
       totpEnabled: false,
+      mustChangePassword: !!dbUser.mustChangePassword,
     });
-    return { requireTotp: false, requireTotpSetup: true, accessToken: fullToken };
+    return {
+      requireTotp: false,
+      requireTotpSetup: true,
+      requirePasswordChange: !!dbUser.mustChangePassword,
+      accessToken: fullToken,
+    };
   }
 
   async verifyTotp(partialToken: string, code: string) {
@@ -58,8 +68,12 @@ export class AuthService {
       role: payload.role,
       totpVerified: true,
       totpEnabled: true,
+      mustChangePassword: !!payload.mustChangePassword,
     });
-    return { accessToken: fullToken };
+    return {
+      accessToken: fullToken,
+      requirePasswordChange: !!payload.mustChangePassword,
+    };
   }
 
   async setupTotp(userId: string) {
@@ -92,6 +106,7 @@ export class AuthService {
       role: user.role,
       totpVerified: true,
       totpEnabled: true,
+      mustChangePassword: !!user.mustChangePassword,
     });
     return { success: true, message: 'TOTP enabled successfully', accessToken: newToken };
   }
@@ -104,6 +119,7 @@ export class AuthService {
       username: user.username,
       role: user.role,
       totpEnabled: user.totpEnabled,
+      mustChangePassword: !!user.mustChangePassword,
     };
   }
 }
