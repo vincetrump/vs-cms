@@ -74,6 +74,8 @@ export class ApiKeysService {
       .update(body + timestamp)
       .digest('hex');
 
+    if (expected.length !== signature.length) return false;
+
     return crypto.timingSafeEqual(
       Buffer.from(expected, 'hex'),
       Buffer.from(signature, 'hex'),
