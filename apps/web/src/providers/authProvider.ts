@@ -51,9 +51,12 @@ export const authProvider: AuthProvider = {
         headers: { Authorization: `Bearer ${token}` },
       });
       return { authenticated: true };
-    } catch {
-      localStorage.removeItem("token");
-      return { authenticated: false, redirectTo: "/login" };
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        localStorage.removeItem("token");
+        return { authenticated: false, redirectTo: "/login" };
+      }
+      return { authenticated: true };
     }
   },
 

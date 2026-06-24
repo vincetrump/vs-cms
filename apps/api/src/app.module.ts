@@ -26,7 +26,7 @@ import { TotpSetupGuard } from './common/guards/totp-setup.guard';
       isGlobal: true,
       load: [configuration],
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 200 }]),
     DatabaseModule,
     SshModule,
     CloudflareModule,
