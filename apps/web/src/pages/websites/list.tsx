@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTable, ShowButton, List } from "@refinedev/antd";
+import { useGo } from "@refinedev/core";
 import { Table, Tag, Button, Grid, Tooltip, Input, Space } from "antd";
 import {
   SyncOutlined,
@@ -32,8 +33,9 @@ function parseDomains(input: string): string[] {
 
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
+  const go = useGo();
 
-  const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
+  const { tableProps, tableQuery, filters } = useTable({
     resource: "websites",
     syncWithLocation: true,
   });
@@ -58,8 +60,14 @@ export const WebsiteList = () => {
   const handleSearch = () => {
     const domains = parseDomains(searchText);
     if (domains.length) {
-      setCurrent(1);
-      setFilters([{ field: "domains", operator: "eq", value: domains.join(",") }], "replace");
+      go({
+        type: "replace",
+        query: {
+          pageSize: 10,
+          current: 1,
+          filters: [{ field: "domains", operator: "eq", value: domains.join(",") }],
+        },
+      });
     } else {
       handleClear();
     }
@@ -67,8 +75,10 @@ export const WebsiteList = () => {
 
   const handleClear = () => {
     setSearchText("");
-    setCurrent(1);
-    setFilters([], "replace");
+    go({
+      type: "replace",
+      query: { pageSize: 10, current: 1 },
+    });
   };
 
   const hasFilter = filters?.some((f: any) => f.field === "domains");
