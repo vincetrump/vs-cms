@@ -11,6 +11,7 @@ import {
   ApiOutlined,
   SafetyOutlined,
   RocketOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 
 const { Title, Paragraph, Text } = Typography;
@@ -41,7 +42,9 @@ const guides: GuideSection[] = [
         <ol>
           <li><Text strong>Sync Websites</Text> — Đồng bộ danh sách websites từ Cloudflare</li>
           <li><Text strong>Tạo Text Link</Text> — Tạo link mới với anchor text, URL đích, thuộc tính rel</li>
-          <li><Text strong>Deploy</Text> — Chèn link vào homepage các websites đã chọn (qua SSH)</li>
+          <li><Text strong>Chọn Websites</Text> — Chọn websites muốn deploy khi tạo link</li>
+          <li><Text strong>Duyệt</Text> — Admin duyệt link từ Sale/API (pending → active)</li>
+          <li><Text strong>Deploy</Text> — Hệ thống tự động chèn link vào homepage qua SSH</li>
           <li><Text strong>Quản lý</Text> — Theo dõi trạng thái, enable/disable, gỡ link</li>
         </ol>
         <Alert
@@ -73,16 +76,16 @@ const guides: GuideSection[] = [
         <ul>
           <li><Text strong>Rel Attribute</Text> — Thuộc tính rel (<Text code>nofollow</Text>, <Text code>sponsored</Text>, v.v.). Bỏ trống = dofollow</li>
           <li><Text strong>Expiration Date</Text> — Ngày hết hạn, hệ thống tự gỡ link khi hết hạn</li>
-          <li><Text strong>Deploy to Websites</Text> — (Chỉ Admin) Chọn websites để deploy ngay</li>
+          <li><Text strong>Deploy to Websites</Text> — Chọn websites để deploy. Admin: deploy ngay khi tạo. Sale: deploy sau khi Admin duyệt</li>
         </ul>
         <Divider />
         <Title level={5}>Trạng thái Text Link</Title>
         <Space wrap>
-          <Tag color="gold">pending</Tag><Text>Đợi Admin duyệt (link từ API)</Text>
+          <Tag color="gold">pending</Tag><Text>Đợi Admin duyệt (link từ Sale hoặc API, hoặc Sale sửa link active)</Text>
         </Space>
         <br />
         <Space wrap style={{ marginTop: 4 }}>
-          <Tag color="green">active</Tag><Text>Đang hoạt động, có thể deploy</Text>
+          <Tag color="green">active</Tag><Text>Đang hoạt động, đã hoặc đang deploy</Text>
         </Space>
         <br />
         <Space wrap style={{ marginTop: 4 }}>
@@ -95,15 +98,22 @@ const guides: GuideSection[] = [
         <Divider />
         <Title level={5}>Deploy / Undeploy</Title>
         <Paragraph>
-          Trên trang chi tiết Text Link, bạn có thể:
+          Trên trang chi tiết Text Link, Admin có thể:
         </Paragraph>
         <ul>
-          <li><Text strong>Deploy</Text> — Chèn link vào homepage website đã chọn</li>
-          <li><Text strong>Undeploy</Text> — Gỡ link khỏi website</li>
-          <li><Text strong>Enable/Disable</Text> — Bật/tắt link (disable sẽ gỡ khỏi tất cả sites)</li>
+          <li><Text strong>Approve</Text> — Duyệt link pending → active, tự động deploy vào websites đã chọn</li>
+          <li><Text strong>Disable</Text> — Tắt link active → disabled, gỡ khỏi tất cả websites</li>
+          <li><Text strong>Enable</Text> — Bật lại link disabled → active, deploy lại vào các websites trước đó</li>
+          <li><Text strong>Deploy thêm</Text> — Chọn thêm websites để deploy</li>
+          <li><Text strong>Undeploy</Text> — Gỡ link khỏi từng website cụ thể</li>
         </ul>
+        <Divider />
+        <Title level={5}>Sửa Text Link</Title>
+        <Paragraph>
+          Admin sửa link active → hệ thống tự động redeploy nội dung mới lên tất cả websites đang deploy.
+        </Paragraph>
         <Alert
-          message="Sale tạo link sẽ ở trạng thái Disabled và cần Admin phê duyệt."
+          message="Sale sửa nội dung (anchor text, URL, rel) của link active → link quay về trạng thái pending và cần Admin duyệt lại. Nội dung cũ vẫn giữ nguyên trên websites cho đến khi Admin duyệt."
           type="warning"
           showIcon
         />
@@ -165,6 +175,43 @@ const guides: GuideSection[] = [
           <li>Tổng số text links theo trạng thái</li>
           <li>Số links đang pending cần duyệt</li>
         </ul>
+      </>
+    ),
+  },
+  {
+    key: "users",
+    title: "Quản lý Users",
+    icon: <TeamOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Title level={5}>Danh sách Users</Title>
+        <Paragraph>
+          Vào <Text code>Users</Text> để xem danh sách tài khoản. Bảng hiển thị:
+          username, role (Admin/Sale), trạng thái 2FA, trạng thái đổi mật khẩu.
+        </Paragraph>
+        <Divider />
+        <Title level={5}>Tạo User mới</Title>
+        <Paragraph>
+          Nhấn <Text strong>Create User</Text>, điền username, password, và chọn role.
+          User mới tạo sẽ bắt buộc đổi mật khẩu khi đăng nhập lần đầu.
+        </Paragraph>
+        <Divider />
+        <Title level={5}>Đăng nhập lần đầu</Title>
+        <Paragraph>
+          Khi user mới đăng nhập:
+        </Paragraph>
+        <ol>
+          <li>Nhập username + password → hệ thống yêu cầu đổi mật khẩu</li>
+          <li>Đặt mật khẩu mới (tối thiểu 6 ký tự)</li>
+          <li>Thiết lập Google Authenticator (quét QR code)</li>
+          <li>Xác nhận mã 6 số → hoàn tất đăng ký</li>
+        </ol>
+        <Alert
+          message="Admin không thể xóa chính tài khoản của mình."
+          type="info"
+          showIcon
+        />
       </>
     ),
   },
@@ -244,6 +291,8 @@ const guides: GuideSection[] = [
           <li><Text strong>Sync Websites</Text> — Đồng bộ websites từ Cloudflare</li>
           <li><Text strong>Deploy Links</Text> — Chèn text link vào websites</li>
           <li><Text strong>Undeploy Links</Text> — Gỡ text link khỏi websites</li>
+          <li><Text strong>Redeploy Link</Text> — Cập nhật nội dung link đã deploy (khi Admin sửa)</li>
+          <li><Text strong>Sync Link Websites</Text> — Đồng bộ danh sách websites của link (thêm/gỡ)</li>
           <li><Text strong>Verify Deployments</Text> — Kiểm tra links còn tồn tại trên website</li>
           <li><Text strong>Check Expired</Text> — Tìm và gỡ links hết hạn</li>
         </ul>
@@ -281,6 +330,7 @@ const guides: GuideSection[] = [
         <Paragraph>Hệ thống áp dụng bảo mật nhiều lớp:</Paragraph>
         <ul>
           <li><Text strong>2FA (TOTP)</Text> — Đăng nhập yêu cầu Google Authenticator</li>
+          <li><Text strong>Đổi mật khẩu bắt buộc</Text> — User mới phải đổi mật khẩu khi đăng nhập lần đầu</li>
           <li><Text strong>HMAC Signing</Text> — API requests phải ký bằng HMAC-SHA256</li>
           <li><Text strong>Rate Limiting</Text> — Giới hạn request/phút cho mỗi API key</li>
           <li><Text strong>IP Whitelist</Text> — Tùy chọn giới hạn IP cho API key</li>
@@ -299,16 +349,22 @@ const guides: GuideSection[] = [
       <>
         <Title level={5}>Admin</Title>
         <ul>
-          <li>Toàn quyền: websites, text links, API keys, jobs, settings, guides</li>
-          <li>Deploy/undeploy links</li>
-          <li>Duyệt links từ API (pending → active)</li>
-          <li>Quản lý users và API keys</li>
+          <li>Toàn quyền: websites, text links, API keys, jobs, users, settings, guides</li>
+          <li>Deploy/undeploy links lên websites</li>
+          <li>Duyệt links pending → active (từ Sale hoặc API)</li>
+          <li>Enable/disable links</li>
+          <li>Tạo và quản lý user accounts</li>
+          <li>Sửa link active → tự động redeploy nội dung mới</li>
         </ul>
         <Title level={5}>Sale</Title>
         <ul>
-          <li>Xem và tạo text links (link mới sẽ ở trạng thái disabled, cần Admin duyệt)</li>
-          <li>Xem dashboard</li>
-          <li>Không truy cập được: websites, API keys, jobs</li>
+          <li>Tạo text links (status = pending, cần Admin duyệt)</li>
+          <li>Chọn websites muốn deploy khi tạo link</li>
+          <li>Sửa link của mình (sửa nội dung link active → quay về pending)</li>
+          <li>Sửa title link active → giữ nguyên active (không cần duyệt lại)</li>
+          <li>Xem dashboard và guides</li>
+          <li>Đổi mật khẩu và quản lý 2FA trong Settings</li>
+          <li>Không truy cập được: websites, API keys, jobs, users</li>
         </ul>
       </>
     ),
@@ -320,26 +376,44 @@ const guides: GuideSection[] = [
     role: "all",
     content: (
       <>
+        <Title level={5}>Đăng nhập lần đầu</Title>
+        <ol>
+          <li>Admin cung cấp username và password</li>
+          <li>Đăng nhập → hệ thống yêu cầu đổi mật khẩu</li>
+          <li>Đặt mật khẩu mới → thiết lập Google Authenticator</li>
+          <li>Quét QR code bằng app, nhập mã 6 số → hoàn tất</li>
+        </ol>
+        <Divider />
         <Title level={5}>Quy trình tạo Text Link</Title>
         <ol>
-          <li>Đăng nhập và xác thực 2FA (Google Authenticator)</li>
+          <li>Đăng nhập và xác thực 2FA</li>
           <li>Vào <Text code>Text Links → Create</Text></li>
           <li>Điền thông tin: Title, Anchor Text, Target URL</li>
           <li>Chọn Rel attribute nếu cần (mặc định dofollow)</li>
           <li>Đặt ngày hết hạn nếu có</li>
+          <li>Chọn websites muốn deploy</li>
           <li>Nhấn <Text strong>Save</Text></li>
         </ol>
         <Alert
-          message="Link tạo bởi Sale sẽ ở trạng thái Disabled. Admin sẽ review và kích hoạt."
+          message="Link tạo bởi Sale sẽ ở trạng thái Pending. Admin sẽ review, duyệt và link tự động deploy vào các websites đã chọn."
           type="info"
           showIcon
           style={{ marginTop: 8 }}
         />
         <Divider />
+        <Title level={5}>Sửa Text Link</Title>
+        <Paragraph>
+          Bạn có thể sửa link của mình bất cứ lúc nào:
+        </Paragraph>
+        <ul>
+          <li><Text strong>Sửa title</Text> — Không ảnh hưởng trạng thái, link active vẫn giữ active</li>
+          <li><Text strong>Sửa nội dung</Text> (anchor text, URL, rel) — Nếu link đang active, sẽ quay về pending và cần Admin duyệt lại. Nội dung cũ vẫn hiển thị trên websites cho đến khi duyệt</li>
+        </ul>
+        <Divider />
         <Title level={5}>Theo dõi Text Links</Title>
         <Paragraph>
           Vào <Text code>Text Links</Text> để xem danh sách links đã tạo.
-          Bạn có thể edit thông tin link hoặc xem chi tiết trạng thái deploy.
+          Bạn chỉ thấy links của mình. Nhấn vào link để xem chi tiết trạng thái.
         </Paragraph>
       </>
     ),
@@ -357,6 +431,8 @@ const guides: GuideSection[] = [
         <ul>
           <li>Text link mới được tạo (kèm link Approve/Reject)</li>
           <li>Link được deploy hoặc gỡ khỏi websites</li>
+          <li>Trạng thái link thay đổi (pending → active, active → disabled, v.v.)</li>
+          <li>Sale sửa nội dung link → quay về pending (cần duyệt lại)</li>
           <li>Link hết hạn và bị gỡ tự động</li>
         </ul>
         <Paragraph>
