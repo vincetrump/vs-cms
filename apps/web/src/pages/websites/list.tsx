@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTable, ShowButton, List } from "@refinedev/antd";
 import { Table, Tag, Button, Grid, Tooltip, Input, Space } from "antd";
 import {
@@ -30,31 +30,29 @@ function parseDomains(input: string): string[] {
     .filter(Boolean);
 }
 
+interface SearchResult {
+  data: any[];
+  total: number;
+}
+
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
-  const [pendingFilter, setPendingFilter] = useState<{ value: string; seq: number } | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
 
-  const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
+  const { tableProps, tableQuery } = useTable({
     resource: "websites",
-    syncWithLocation: false,
+    syncWithLocation: true,
   });
   const screens = useBreakpoint();
-
-  useEffect(() => {
-    if (pendingFilter) {
-      if (pendingFilter.value === "") {
-        setFilters([], "replace");
-      } else {
-        setFilters([{ field: "domains", operator: "eq", value: pendingFilter.value }], "replace");
-      }
-      setPendingFilter(null);
-    }
-  }, [pendingFilter]);
 
   const { startPolling, isPolling } = useJobPolling({
     successMessage: "Website sync completed",
     failedMessage: "Website sync failed",
-    onComplete: () => tableQuery.refetch(),
+    onComplete: () => {
+      tableQuery.refetch();
+      if (searchResult) handleSearch();
+    },
     onFailed: () => tableQuery.refetch(),
   });
 
@@ -67,23 +65,32 @@ export const WebsiteList = () => {
     }
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const domains = parseDomains(searchText);
-    if (domains.length) {
-      setCurrent(1);
-      setPendingFilter({ value: domains.join(","), seq: Date.now() });
-    } else {
+    if (!domains.length) {
       handleClear();
+      return;
+    }
+    setSearching(true);
+    try {
+      const { data, headers } = await axiosInstance.get(`${API_URL}/websites`, {
+        params: { _start: 0, _end: 200, domains: domains.join(",") },
+      });
+      setSearchResult({
+        data,
+        total: parseInt(headers["x-total-count"] || "0", 10),
+      });
+    } finally {
+      setSearching(false);
     }
   };
 
   const handleClear = () => {
     setSearchText("");
-    setCurrent(1);
-    setPendingFilter({ value: "", seq: Date.now() });
+    setSearchResult(null);
   };
 
-  const hasFilter = filters?.some((f: any) => f.field === "domains");
+  const isFiltered = searchResult !== null;
 
   const statusColors: Record<string, string> = {
     active: "green",
@@ -98,6 +105,11 @@ export const WebsiteList = () => {
     no_records: { color: "default", icon: <QuestionCircleOutlined />, label: "No records" },
     error: { color: "red", icon: <CloseCircleOutlined />, label: "Error" },
   };
+
+  const dataSource = isFiltered ? searchResult.data : tableProps.dataSource;
+  const pagination = isFiltered
+    ? { total: searchResult.total, pageSize: searchResult.total, hideOnSinglePage: true }
+    : tableProps.pagination;
 
   return (
     <List
@@ -116,14 +128,28 @@ export const WebsiteList = () => {
           size={screens.sm ? "middle" : "small"}
           allowClear
         />
-        <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} size={screens.sm ? "middle" : "small"} />
-        {hasFilter && (
+        <Button
+          type="primary"
+          icon={<SearchOutlined />}
+          onClick={handleSearch}
+          loading={searching}
+          size={screens.sm ? "middle" : "small"}
+        />
+        {isFiltered && (
           <Button icon={<ClearOutlined />} onClick={handleClear} size={screens.sm ? "middle" : "small"} />
         )}
       </Space.Compact>
 
-      <Table {...tableProps} rowKey="_id" scroll={{ x: screens.sm ? 600 : undefined }} size="small">
-        <Table.Column dataIndex="domain" title="Domain" sorter ellipsis />
+      <Table
+        {...tableProps}
+        dataSource={dataSource}
+        pagination={pagination}
+        loading={searching || tableProps.loading}
+        rowKey="_id"
+        scroll={{ x: screens.sm ? 600 : undefined }}
+        size="small"
+      >
+        <Table.Column dataIndex="domain" title="Domain" sorter={!isFiltered} ellipsis />
         <Table.Column
           dataIndex="status"
           title="Status"
