@@ -91,6 +91,7 @@ export class LinkDeploymentsService {
       }
     }
 
+    await this.refreshDeployedCounts(websiteIds);
     return results;
   }
 
@@ -118,6 +119,7 @@ export class LinkDeploymentsService {
       }
     }
 
+    await this.refreshDeployedCounts(websiteIds);
     return results;
   }
 
@@ -295,6 +297,15 @@ export class LinkDeploymentsService {
       .exec();
 
     return { added, removed, verified, orphaned, deployedCount, externalLinks: scan.externalLinks };
+  }
+
+  async refreshDeployedCounts(websiteIds: string[]) {
+    for (const websiteId of websiteIds) {
+      const count = await this.deploymentModel
+        .countDocuments({ websiteId, status: 'deployed' })
+        .exec();
+      await this.websitesService.updateDeployedLinkCount(websiteId, count);
+    }
   }
 
   private extractExternalLinks(

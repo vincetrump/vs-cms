@@ -61,6 +61,14 @@ export class WebsitesService {
     );
   }
 
+  async updateDeployedLinkCount(id: string, count: number) {
+    return this.websiteModel.findByIdAndUpdate(
+      id,
+      { $set: { deployedLinkCount: count } },
+      { new: true },
+    );
+  }
+
   async count() {
     return this.websiteModel.countDocuments().exec();
   }

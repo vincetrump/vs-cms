@@ -25,6 +25,15 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Invalid API key');
     }
 
+    if (keyDoc.allowedIps?.length) {
+      const clientIp =
+        request.headers['x-forwarded-for']?.toString().split(',')[0].trim() ||
+        request.ip?.replace('::ffff:', '');
+      if (!keyDoc.allowedIps.includes(clientIp)) {
+        throw new UnauthorizedException('IP address not allowed');
+      }
+    }
+
     if (!signature || !timestamp) {
       throw new UnauthorizedException('HMAC signature and timestamp headers are required');
     }

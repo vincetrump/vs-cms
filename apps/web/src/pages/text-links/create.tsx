@@ -29,22 +29,22 @@ export const TextLinkCreate = () => {
       <Form {...formProps} layout="vertical">
         <Row gutter={16}>
           <Col span={span}>
-            <Form.Item label="Title" name="title" rules={[{ required: true }]}>
+            <Form.Item label="Title" name="title" rules={[{ required: true }]} tooltip="Tên nội bộ để nhận diện link (không hiển thị trên website)">
               <Input placeholder="e.g. Partner A Campaign" />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Anchor Text" name="anchorText" rules={[{ required: true }]}>
+            <Form.Item label="Anchor Text" name="anchorText" rules={[{ required: true }]} tooltip="Văn bản hiển thị trên website, click vào sẽ mở Target URL">
               <Input placeholder="Visible link text" />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]}>
+            <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]} tooltip="URL đích khi người dùng click vào link (bắt buộc http/https)">
               <Input placeholder="https://example.com" />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Rel Attribute" name="rel" tooltip="e.g. nofollow, sponsored, ugc — leave empty for dofollow">
+            <Form.Item label="Rel Attribute" name="rel" tooltip="Thuộc tính rel của thẻ <a>. Bỏ trống = dofollow (tốt cho SEO). Chọn nofollow hoặc sponsored nếu là link trả phí.">
               <Select
                 allowClear
                 placeholder="Not set (dofollow)"
@@ -60,7 +60,7 @@ export const TextLinkCreate = () => {
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Expiration Date" name="expiresAt">
+            <Form.Item label="Expiration Date" name="expiresAt" tooltip="Hệ thống tự gỡ link khỏi tất cả websites khi hết hạn (chạy lúc 02:00 hàng ngày)">
               <DatePicker style={{ width: "100%" }} disabledDate={(current) => current && current < dayjs().startOf("day")} />
             </Form.Item>
           </Col>

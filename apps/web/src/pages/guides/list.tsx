@@ -1,0 +1,402 @@
+import { useGetIdentity } from "@refinedev/core";
+import { List } from "@refinedev/antd";
+import { Card, Typography, Collapse, Tag, Space, Alert, Grid, Divider } from "antd";
+import {
+  GlobalOutlined,
+  LinkOutlined,
+  KeyOutlined,
+  HistoryOutlined,
+  DashboardOutlined,
+  UserOutlined,
+  ApiOutlined,
+  SafetyOutlined,
+  RocketOutlined,
+} from "@ant-design/icons";
+
+const { Title, Paragraph, Text } = Typography;
+const { useBreakpoint } = Grid;
+
+interface GuideSection {
+  key: string;
+  title: string;
+  icon: React.ReactNode;
+  role: "all" | "admin";
+  content: React.ReactNode;
+}
+
+const guides: GuideSection[] = [
+  {
+    key: "overview",
+    title: "Tổng quan hệ thống",
+    icon: <RocketOutlined />,
+    role: "all",
+    content: (
+      <>
+        <Paragraph>
+          <Text strong>VS-CMS</Text> là hệ thống quản lý text links trên nhiều websites.
+          Hệ thống cho phép chèn, gỡ, và theo dõi text links trên homepage
+          của các website HTML tĩnh thông qua SSH.
+        </Paragraph>
+        <Title level={5}>Luồng hoạt động chính</Title>
+        <ol>
+          <li><Text strong>Sync Websites</Text> — Đồng bộ danh sách websites từ Cloudflare</li>
+          <li><Text strong>Tạo Text Link</Text> — Tạo link mới với anchor text, URL đích, thuộc tính rel</li>
+          <li><Text strong>Deploy</Text> — Chèn link vào homepage các websites đã chọn (qua SSH)</li>
+          <li><Text strong>Quản lý</Text> — Theo dõi trạng thái, enable/disable, gỡ link</li>
+        </ol>
+        <Alert
+          message="Mỗi thao tác deploy/undeploy đều tạo backup file trước khi ghi, đảm bảo có thể khôi phục."
+          type="info"
+          showIcon
+          style={{ marginTop: 12 }}
+        />
+      </>
+    ),
+  },
+  {
+    key: "text-links",
+    title: "Quản lý Text Links",
+    icon: <LinkOutlined />,
+    role: "all",
+    content: (
+      <>
+        <Title level={5}>Tạo Text Link</Title>
+        <Paragraph>
+          Vào <Text code>Text Links → Create</Text>. Các trường bắt buộc:
+        </Paragraph>
+        <ul>
+          <li><Text strong>Title</Text> — Tên nội bộ để nhận diện link</li>
+          <li><Text strong>Anchor Text</Text> — Văn bản hiển thị trên website</li>
+          <li><Text strong>Target URL</Text> — URL đích (bắt buộc http/https)</li>
+        </ul>
+        <Paragraph>Các trường tùy chọn:</Paragraph>
+        <ul>
+          <li><Text strong>Rel Attribute</Text> — Thuộc tính rel (<Text code>nofollow</Text>, <Text code>sponsored</Text>, v.v.). Bỏ trống = dofollow</li>
+          <li><Text strong>Expiration Date</Text> — Ngày hết hạn, hệ thống tự gỡ link khi hết hạn</li>
+          <li><Text strong>Deploy to Websites</Text> — (Chỉ Admin) Chọn websites để deploy ngay</li>
+        </ul>
+        <Divider />
+        <Title level={5}>Trạng thái Text Link</Title>
+        <Space wrap>
+          <Tag color="gold">pending</Tag><Text>Đợi Admin duyệt (link từ API)</Text>
+        </Space>
+        <br />
+        <Space wrap style={{ marginTop: 4 }}>
+          <Tag color="green">active</Tag><Text>Đang hoạt động, có thể deploy</Text>
+        </Space>
+        <br />
+        <Space wrap style={{ marginTop: 4 }}>
+          <Tag color="red">disabled</Tag><Text>Đã tắt, link bị gỡ khỏi tất cả sites</Text>
+        </Space>
+        <br />
+        <Space wrap style={{ marginTop: 4 }}>
+          <Tag color="default">expired</Tag><Text>Đã hết hạn, tự động gỡ bởi cron</Text>
+        </Space>
+        <Divider />
+        <Title level={5}>Deploy / Undeploy</Title>
+        <Paragraph>
+          Trên trang chi tiết Text Link, bạn có thể:
+        </Paragraph>
+        <ul>
+          <li><Text strong>Deploy</Text> — Chèn link vào homepage website đã chọn</li>
+          <li><Text strong>Undeploy</Text> — Gỡ link khỏi website</li>
+          <li><Text strong>Enable/Disable</Text> — Bật/tắt link (disable sẽ gỡ khỏi tất cả sites)</li>
+        </ul>
+        <Alert
+          message="Sale tạo link sẽ ở trạng thái Disabled và cần Admin phê duyệt."
+          type="warning"
+          showIcon
+        />
+      </>
+    ),
+  },
+  {
+    key: "websites",
+    title: "Quản lý Websites",
+    icon: <GlobalOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Title level={5}>Sync Websites</Title>
+        <Paragraph>
+          Nhấn nút <Text strong>Sync</Text> để đồng bộ danh sách websites từ Cloudflare.
+          Hệ thống sẽ:
+        </Paragraph>
+        <ol>
+          <li>Lấy tất cả zones từ tài khoản Cloudflare</li>
+          <li>Kiểm tra document root trên server qua SSH</li>
+          <li>Kiểm tra DNS có trỏ đúng server không</li>
+          <li>Đếm số text links đã deploy và external links trên homepage</li>
+        </ol>
+        <Divider />
+        <Title level={5}>Cột trên bảng Websites</Title>
+        <ul>
+          <li><Text strong>Status</Text> — <Tag color="green">active</Tag> = homepage tồn tại, <Tag color="orange">not_configured</Tag> = không tìm thấy homepage</li>
+          <li><Text strong>DNS</Text> — <Tag color="green">OK</Tag> = DNS trỏ đúng server</li>
+          <li><Text strong>Links</Text> — Số text links VS-CMS đã deploy trên website</li>
+          <li><Text strong>Ext.</Text> — Số external links tìm thấy trên homepage (không phải VS-CMS)</li>
+        </ul>
+        <Divider />
+        <Title level={5}>Tìm kiếm</Title>
+        <Paragraph>
+          Nhập domain (nhiều domain cách nhau bởi dấu phẩy) để lọc. Hệ thống tự loại bỏ
+          http://, www. và trailing slash.
+        </Paragraph>
+        <Alert
+          message="Website status 'not_configured' nghĩa là domain có trên Cloudflare nhưng chưa có homepage trên server, hoặc chưa cấu hình document root."
+          type="info"
+          showIcon
+        />
+      </>
+    ),
+  },
+  {
+    key: "dashboard",
+    title: "Dashboard",
+    icon: <DashboardOutlined />,
+    role: "all",
+    content: (
+      <>
+        <Paragraph>
+          Dashboard hiển thị thống kê tổng quan:
+        </Paragraph>
+        <ul>
+          <li>Tổng số websites (active / not configured)</li>
+          <li>Tổng số text links theo trạng thái</li>
+          <li>Số links đang pending cần duyệt</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    key: "api-keys",
+    title: "API Keys & Tích hợp",
+    icon: <KeyOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Title level={5}>Tạo API Key</Title>
+        <Paragraph>
+          Vào <Text code>API Keys → New API Key</Text>. Sau khi tạo, hệ thống sẽ hiển thị:
+        </Paragraph>
+        <ul>
+          <li><Text strong>API Key</Text> — Dùng trong header <Text code>x-api-key</Text></li>
+          <li><Text strong>HMAC Secret</Text> — Dùng để ký request</li>
+        </ul>
+        <Alert
+          message="Credentials chỉ hiển thị 1 lần duy nhất! Hãy lưu lại ngay."
+          type="error"
+          showIcon
+          style={{ marginBottom: 12 }}
+        />
+        <Divider />
+        <Title level={5}>IP Whitelist</Title>
+        <Paragraph>
+          Khi tạo API key, có thể chỉ định danh sách IP được phép sử dụng.
+          Bỏ trống = cho phép tất cả IP. Request từ IP không nằm trong danh sách
+          sẽ bị từ chối.
+        </Paragraph>
+        <Divider />
+        <Title level={5}>Xác thực API</Title>
+        <Paragraph>Mỗi request cần 3 headers:</Paragraph>
+        <ul>
+          <li><Text code>x-api-key</Text> — API key</li>
+          <li><Text code>x-timestamp</Text> — Timestamp (milliseconds) hiện tại</li>
+          <li><Text code>x-signature</Text> — HMAC-SHA256 của (body + timestamp) dùng HMAC Secret</li>
+        </ul>
+        <Paragraph>
+          Timestamp phải trong khoảng ±5 phút so với server. Xem trang chi tiết API key
+          để lấy example code Node.js / Python.
+        </Paragraph>
+        <Divider />
+        <Title level={5}>Endpoints</Title>
+        <ul>
+          <li><Text code>POST /api/v1/text-links</Text> — Tạo text link mới (status: pending)</li>
+          <li><Text code>GET /api/v1/text-links/:id</Text> — Xem chi tiết text link đã tạo</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    key: "jobs",
+    title: "Jobs & Background Tasks",
+    icon: <HistoryOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Paragraph>
+          Mọi thao tác nặng (sync, deploy, undeploy) chạy dưới dạng background job.
+          Vào <Text code>Jobs</Text> để xem danh sách và chi tiết.
+        </Paragraph>
+        <Title level={5}>Loại Job</Title>
+        <ul>
+          <li><Text strong>Sync Websites</Text> — Đồng bộ websites từ Cloudflare</li>
+          <li><Text strong>Deploy Links</Text> — Chèn text link vào websites</li>
+          <li><Text strong>Undeploy Links</Text> — Gỡ text link khỏi websites</li>
+          <li><Text strong>Verify Deployments</Text> — Kiểm tra links còn tồn tại trên website</li>
+          <li><Text strong>Check Expired</Text> — Tìm và gỡ links hết hạn</li>
+        </ul>
+        <Title level={5}>Console Log</Title>
+        <Paragraph>
+          Trang chi tiết Job hiển thị toàn bộ log console theo thời gian thực,
+          bao gồm kết quả từng website (thành công/thất bại).
+        </Paragraph>
+      </>
+    ),
+  },
+  {
+    key: "cron",
+    title: "Cron Jobs Tự Động",
+    icon: <HistoryOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Paragraph>Hệ thống chạy các tác vụ tự động hàng ngày:</Paragraph>
+        <ul>
+          <li><Text strong>02:00</Text> — Quét text links hết hạn → gỡ khỏi websites → đánh dấu expired → thông báo Discord</li>
+          <li><Text strong>03:00</Text> — Verify deployments (kiểm tra links còn trên website)</li>
+          <li><Text strong>04:00</Text> — Sync websites từ Cloudflare</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    key: "security",
+    title: "Bảo mật",
+    icon: <SafetyOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Paragraph>Hệ thống áp dụng bảo mật nhiều lớp:</Paragraph>
+        <ul>
+          <li><Text strong>2FA (TOTP)</Text> — Đăng nhập yêu cầu Google Authenticator</li>
+          <li><Text strong>HMAC Signing</Text> — API requests phải ký bằng HMAC-SHA256</li>
+          <li><Text strong>Rate Limiting</Text> — Giới hạn request/phút cho mỗi API key</li>
+          <li><Text strong>IP Whitelist</Text> — Tùy chọn giới hạn IP cho API key</li>
+          <li><Text strong>SSH Key Auth</Text> — Kết nối server qua SSH key, không password</li>
+          <li><Text strong>File Backup</Text> — Backup homepage trước mỗi lần ghi</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    key: "roles",
+    title: "Phân quyền (RBAC)",
+    icon: <UserOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Title level={5}>Admin</Title>
+        <ul>
+          <li>Toàn quyền: websites, text links, API keys, jobs, settings, guides</li>
+          <li>Deploy/undeploy links</li>
+          <li>Duyệt links từ API (pending → active)</li>
+          <li>Quản lý users và API keys</li>
+        </ul>
+        <Title level={5}>Sale</Title>
+        <ul>
+          <li>Xem và tạo text links (link mới sẽ ở trạng thái disabled, cần Admin duyệt)</li>
+          <li>Xem dashboard</li>
+          <li>Không truy cập được: websites, API keys, jobs</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    key: "sale-guide",
+    title: "Hướng dẫn cho Sale",
+    icon: <UserOutlined />,
+    role: "all",
+    content: (
+      <>
+        <Title level={5}>Quy trình tạo Text Link</Title>
+        <ol>
+          <li>Đăng nhập và xác thực 2FA (Google Authenticator)</li>
+          <li>Vào <Text code>Text Links → Create</Text></li>
+          <li>Điền thông tin: Title, Anchor Text, Target URL</li>
+          <li>Chọn Rel attribute nếu cần (mặc định dofollow)</li>
+          <li>Đặt ngày hết hạn nếu có</li>
+          <li>Nhấn <Text strong>Save</Text></li>
+        </ol>
+        <Alert
+          message="Link tạo bởi Sale sẽ ở trạng thái Disabled. Admin sẽ review và kích hoạt."
+          type="info"
+          showIcon
+          style={{ marginTop: 8 }}
+        />
+        <Divider />
+        <Title level={5}>Theo dõi Text Links</Title>
+        <Paragraph>
+          Vào <Text code>Text Links</Text> để xem danh sách links đã tạo.
+          Bạn có thể edit thông tin link hoặc xem chi tiết trạng thái deploy.
+        </Paragraph>
+      </>
+    ),
+  },
+  {
+    key: "discord",
+    title: "Discord Notifications",
+    icon: <ApiOutlined />,
+    role: "admin",
+    content: (
+      <>
+        <Paragraph>
+          Hệ thống gửi thông báo qua Discord webhook khi:
+        </Paragraph>
+        <ul>
+          <li>Text link mới được tạo (kèm link Approve/Reject)</li>
+          <li>Link được deploy hoặc gỡ khỏi websites</li>
+          <li>Link hết hạn và bị gỡ tự động</li>
+        </ul>
+        <Paragraph>
+          Cấu hình webhook URL trong biến môi trường <Text code>DISCORD_WEBHOOK_URL</Text>.
+        </Paragraph>
+      </>
+    ),
+  },
+];
+
+export const GuideList = () => {
+  const { data: identity } = useGetIdentity<{ role: string }>();
+  const isAdmin = identity?.role === "admin";
+  const screens = useBreakpoint();
+
+  const filteredGuides = guides.filter(
+    (g) => g.role === "all" || (g.role === "admin" && isAdmin),
+  );
+
+  return (
+    <List headerButtons={false} title="Hướng dẫn hệ thống">
+      <Alert
+        message={
+          isAdmin
+            ? "Bạn đang xem tất cả hướng dẫn (Admin)"
+            : "Bạn đang xem hướng dẫn dành cho Sale"
+        }
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
+      <Collapse
+        accordion
+        defaultActiveKey={["overview"]}
+        size={screens.sm ? "middle" : "small"}
+        items={filteredGuides.map((g) => ({
+          key: g.key,
+          label: (
+            <Space>
+              {g.icon}
+              <span>{g.title}</span>
+              {g.role === "admin" && <Tag color="blue">Admin</Tag>}
+            </Space>
+          ),
+          children: (
+            <Card bordered={false} style={{ margin: -12 }}>
+              {g.content}
+            </Card>
+          ),
+        }))}
+      />
+    </List>
+  );
+};

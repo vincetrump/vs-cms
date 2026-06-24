@@ -8,13 +8,14 @@ import {
   Param,
   Query,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiKeysService } from './api-keys.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ParseQueryPipe, ParsedQuery } from '../../common/pipes/parse-query.pipe';
-import { IsString, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsArray } from 'class-validator';
 
 class CreateApiKeyDto {
   @IsString()
@@ -23,6 +24,11 @@ class CreateApiKeyDto {
   @IsOptional()
   @IsNumber()
   rateLimit?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedIps?: string[];
 }
 
 @Controller('api-keys')
@@ -36,9 +42,16 @@ export class ApiKeysController {
     return this.apiKeysService.findAll(query);
   }
 
+  @Get(':id')
+  async findById(@Param('id') id: string) {
+    const key = await this.apiKeysService.findById(id);
+    if (!key) throw new NotFoundException('API key not found');
+    return key;
+  }
+
   @Post()
   async create(@Body() dto: CreateApiKeyDto) {
-    return this.apiKeysService.create(dto.name, dto.rateLimit);
+    return this.apiKeysService.create(dto.name, dto.rateLimit, dto.allowedIps);
   }
 
   @Patch(':id/deactivate')

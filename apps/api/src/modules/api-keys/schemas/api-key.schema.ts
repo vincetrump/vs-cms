@@ -23,6 +23,9 @@ export class ApiKey {
   @Prop({ default: 60 })
   rateLimit: number;
 
+  @Prop({ type: [String], default: [] })
+  allowedIps: string[];
+
   @Prop({ type: Date, default: null })
   lastUsedAt: Date | null;
 }

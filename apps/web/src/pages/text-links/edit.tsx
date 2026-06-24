@@ -26,22 +26,22 @@ export const TextLinkEdit = () => {
       <Form {...formProps} layout="vertical">
         <Row gutter={16}>
           <Col span={span}>
-            <Form.Item label="Title" name="title" rules={[{ required: true }]}>
+            <Form.Item label="Title" name="title" rules={[{ required: true }]} tooltip="Tên nội bộ để nhận diện link">
               <Input />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Anchor Text" name="anchorText" rules={[{ required: true }]}>
+            <Form.Item label="Anchor Text" name="anchorText" rules={[{ required: true }]} tooltip="Thay đổi anchor text sẽ cần redeploy để cập nhật trên websites">
               <Input />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]}>
+            <Form.Item label="Target URL" name="targetUrl" rules={[{ required: true, type: "url" }]} tooltip="Thay đổi URL sẽ cần redeploy để cập nhật trên websites">
               <Input />
             </Form.Item>
           </Col>
           <Col span={span}>
-            <Form.Item label="Rel Attribute" name="rel" tooltip="e.g. nofollow, sponsored, ugc — leave empty for dofollow">
+            <Form.Item label="Rel Attribute" name="rel" tooltip="Thuộc tính rel. Bỏ trống = dofollow. Thay đổi cần redeploy.">
               <Select
                 allowClear
                 placeholder="Not set (dofollow)"

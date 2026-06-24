@@ -1,13 +1,13 @@
 import { useShow } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
-import { Typography, Tag, Descriptions, Progress, Timeline, Grid, Card } from "antd";
+import { Typography, Tag, Descriptions, Progress, Grid, Card } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
-  InfoCircleOutlined,
   SyncOutlined,
   ClockCircleOutlined,
 } from "@ant-design/icons";
+import { useEffect, useRef } from "react";
 
 const { useBreakpoint } = Grid;
 
@@ -29,12 +29,6 @@ const typeLabels: Record<string, string> = {
   check_expired: "Check Expired",
 };
 
-const logIcons: Record<string, React.ReactNode> = {
-  info: <InfoCircleOutlined style={{ color: "#1890ff" }} />,
-  error: <CloseCircleOutlined style={{ color: "#ff4d4f" }} />,
-  warn: <InfoCircleOutlined style={{ color: "#faad14" }} />,
-};
-
 const statusIcons: Record<string, React.ReactNode> = {
   pending: <ClockCircleOutlined />,
   running: <SyncOutlined spin />,
@@ -42,11 +36,24 @@ const statusIcons: Record<string, React.ReactNode> = {
   failed: <CloseCircleOutlined />,
 };
 
+const levelColors: Record<string, string> = {
+  info: "#1890ff",
+  error: "#ff4d4f",
+  warn: "#faad14",
+};
+
 export const JobShow = () => {
   const { query } = useShow({ resource: "jobs" });
   const { data, isLoading } = query;
   const record = data?.data as any;
   const screens = useBreakpoint();
+  const consoleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+    }
+  }, [record?.logs]);
 
   return (
     <Show isLoading={isLoading}>
@@ -102,43 +109,81 @@ export const JobShow = () => {
                 <Typography.Text type="danger">{record.error}</Typography.Text>
               </Descriptions.Item>
             )}
-            {record.params && Object.keys(record.params).length > 0 && (
-              <Descriptions.Item label="Params" span={screens.md ? 2 : 1}>
-                <Typography.Text code style={{ wordBreak: "break-all" }}>
-                  {JSON.stringify(record.params)}
-                </Typography.Text>
-              </Descriptions.Item>
-            )}
-            {record.result && Object.keys(record.result).length > 0 && (
-              <Descriptions.Item label="Result" span={screens.md ? 2 : 1}>
-                <Typography.Text code style={{ wordBreak: "break-all" }}>
-                  {JSON.stringify(record.result)}
-                </Typography.Text>
-              </Descriptions.Item>
-            )}
           </Descriptions>
 
-          <Card title="Logs" style={{ marginTop: 16 }} size={screens.sm ? "default" : "small"}>
-            {record.logs?.length > 0 ? (
-              <Timeline
-                items={record.logs.map((log: any) => ({
-                  dot: logIcons[log.level] || logIcons.info,
-                  children: (
-                    <div>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </Typography.Text>
-                      <br />
-                      <Typography.Text type={log.level === "error" ? "danger" : undefined}>
-                        {log.message}
-                      </Typography.Text>
-                    </div>
-                  ),
-                }))}
-              />
-            ) : (
-              <Typography.Text type="secondary">No logs yet</Typography.Text>
-            )}
+          {record.params && Object.keys(record.params).length > 0 && (
+            <Card title="Params" size="small" style={{ marginTop: 16 }}>
+              <pre style={{
+                margin: 0,
+                fontSize: 12,
+                fontFamily: "'Fira Code', Consolas, monospace",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+              }}>
+                {JSON.stringify(record.params, null, 2)}
+              </pre>
+            </Card>
+          )}
+
+          {record.result && Object.keys(record.result).length > 0 && (
+            <Card title="Result" size="small" style={{ marginTop: 16 }}>
+              <pre style={{
+                margin: 0,
+                fontSize: 12,
+                fontFamily: "'Fira Code', Consolas, monospace",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+              }}>
+                {JSON.stringify(record.result, null, 2)}
+              </pre>
+            </Card>
+          )}
+
+          <Card
+            title={`Console (${record.logs?.length || 0} entries)`}
+            style={{ marginTop: 16 }}
+            size={screens.sm ? "default" : "small"}
+          >
+            <div
+              ref={consoleRef}
+              style={{
+                background: "#1e1e1e",
+                borderRadius: 6,
+                padding: 12,
+                maxHeight: 600,
+                overflow: "auto",
+                fontFamily: "'Fira Code', Consolas, monospace",
+                fontSize: 12,
+                lineHeight: 1.8,
+              }}
+            >
+              {record.logs?.length > 0 ? (
+                record.logs.map((log: any, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ color: "#666", flexShrink: 0, userSelect: "none" }}>
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span
+                      style={{
+                        color: levelColors[log.level] || "#d4d4d4",
+                        fontWeight: log.level === "error" ? 600 : 400,
+                        flexShrink: 0,
+                        width: 40,
+                        textTransform: "uppercase",
+                        userSelect: "none",
+                      }}
+                    >
+                      {log.level}
+                    </span>
+                    <span style={{ color: log.level === "error" ? "#ff6b6b" : "#d4d4d4", wordBreak: "break-word" }}>
+                      {log.message}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <span style={{ color: "#666" }}>No logs yet</span>
+              )}
+            </div>
           </Card>
         </>
       )}

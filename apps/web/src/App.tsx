@@ -3,7 +3,7 @@ import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinede
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -21,10 +21,12 @@ import { TextLinkEdit } from "./pages/text-links/edit";
 import { TextLinkShow } from "./pages/text-links/show";
 import { ApiKeyList } from "./pages/api-keys/list";
 import { ApiKeyCreate } from "./pages/api-keys/create";
+import { ApiKeyShow } from "./pages/api-keys/show";
 import { SettingsPage } from "./pages/settings";
 import { JobList } from "./pages/jobs/list";
 import { JobShow } from "./pages/jobs/show";
 import { SetupTotpPage } from "./pages/setup-totp";
+import { GuideList } from "./pages/guides/list";
 
 const TotpGuard = () => {
   const { data: identity, isLoading } = useGetIdentity<{ totpEnabled: boolean }>();
@@ -46,6 +48,7 @@ const accessControlProvider: AccessControlProvider = {
       "text-links": ["list", "create", "edit", "show", "delete"],
       dashboard: ["list"],
       settings: ["list"],
+      guides: ["list"],
     };
 
     const allowed = saleAllowed[resource || ""] || [];
@@ -88,6 +91,7 @@ function App() {
                 name: "api-keys",
                 list: "/api-keys",
                 create: "/api-keys/create",
+                show: "/api-keys/show/:id",
                 meta: { label: "API Keys", icon: <KeyOutlined /> },
               },
               {
@@ -100,6 +104,11 @@ function App() {
                 name: "settings",
                 list: "/settings",
                 meta: { label: "Settings", icon: <SettingOutlined /> },
+              },
+              {
+                name: "guides",
+                list: "/guides",
+                meta: { label: "Hướng dẫn", icon: <BookOutlined /> },
               },
             ]}
             options={{ syncWithLocation: true }}
@@ -142,12 +151,14 @@ function App() {
                 <Route path="/api-keys">
                   <Route index element={<ApiKeyList />} />
                   <Route path="create" element={<ApiKeyCreate />} />
+                  <Route path="show/:id" element={<ApiKeyShow />} />
                 </Route>
                 <Route path="/jobs">
                   <Route index element={<JobList />} />
                   <Route path="show/:id" element={<JobShow />} />
                 </Route>
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/guides" element={<GuideList />} />
                 </Route>
               </Route>
               <Route

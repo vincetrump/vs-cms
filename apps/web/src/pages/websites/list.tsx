@@ -114,7 +114,18 @@ export const WebsiteList = () => {
           dataIndex="status"
           title="Status"
           width={screens.sm ? 110 : 70}
-          render={(status: string) => <Tag color={statusColors[status] || "default"}>{status}</Tag>}
+          render={(status: string) => {
+            const tips: Record<string, string> = {
+              active: "Homepage tồn tại trên server",
+              not_configured: "Chưa tìm thấy homepage trên server hoặc chưa cấu hình document root",
+              unreachable: "Không kết nối được server",
+            };
+            return (
+              <Tooltip title={tips[status]}>
+                <Tag color={statusColors[status] || "default"}>{status}</Tag>
+              </Tooltip>
+            );
+          }}
         />
         {screens.sm && (
           <Table.Column

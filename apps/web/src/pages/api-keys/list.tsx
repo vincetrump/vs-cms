@@ -1,4 +1,4 @@
-import { useTable, List } from "@refinedev/antd";
+import { useTable, List, ShowButton } from "@refinedev/antd";
 import { Table, Tag, Button, Space, Popconfirm, message, Grid, Dropdown } from "antd";
 import { PlusOutlined, MoreOutlined } from "@ant-design/icons";
 import { useNavigation } from "@refinedev/core";
@@ -31,10 +31,17 @@ export const ApiKeyList = () => {
     }
   };
 
+  const { show } = useNavigation();
+
   const renderMobileActions = (record: any) => (
     <Dropdown
       menu={{
         items: [
+          {
+            key: "view",
+            label: "View Details",
+            onClick: () => show("api-keys", record._id),
+          },
           ...(record.isActive ? [{
             key: "deactivate",
             label: "Deactivate",
@@ -100,6 +107,7 @@ export const ApiKeyList = () => {
           render={(_, record: any) =>
             screens.sm ? (
               <Space size={4}>
+                <ShowButton size="small" recordItemId={record._id} hideText />
                 {record.isActive && (
                   <Popconfirm title="Deactivate?" onConfirm={() => handleDeactivate(record._id)}>
                     <Button size="small" danger>Deactivate</Button>

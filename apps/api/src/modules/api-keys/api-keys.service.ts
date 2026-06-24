@@ -24,7 +24,11 @@ export class ApiKeysService {
     return { data, total };
   }
 
-  async create(name: string, rateLimit = 60) {
+  async findById(id: string) {
+    return this.apiKeyModel.findById(id).exec();
+  }
+
+  async create(name: string, rateLimit = 60, allowedIps: string[] = []) {
     const rawKey = 'vscms_' + crypto.randomBytes(32).toString('hex');
     const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
     const keyPrefix = rawKey.slice(6, 14);
@@ -36,6 +40,7 @@ export class ApiKeysService {
       keyPrefix,
       hmacSecret,
       rateLimit,
+      allowedIps,
     });
 
     return {
@@ -44,6 +49,7 @@ export class ApiKeysService {
       keyPrefix: apiKey.keyPrefix,
       isActive: apiKey.isActive,
       rateLimit: apiKey.rateLimit,
+      allowedIps: apiKey.allowedIps,
       rawKey,
       rawHmacSecret: hmacSecret,
     };
