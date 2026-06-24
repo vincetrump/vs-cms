@@ -37,9 +37,24 @@ const TotpGuard = () => {
   return <Outlet />;
 };
 
+let _identityCache: { value: any; promise: Promise<any> | null; ts: number } = { value: null, promise: null, ts: 0 };
+async function getCachedIdentity() {
+  const now = Date.now();
+  if (_identityCache.value && now - _identityCache.ts < 30000) return _identityCache.value;
+  if (_identityCache.promise) return _identityCache.promise;
+  _identityCache.promise = authProvider.getIdentity!().then((v) => {
+    _identityCache = { value: v, promise: null, ts: Date.now() };
+    return v;
+  }).catch(() => {
+    _identityCache.promise = null;
+    return _identityCache.value;
+  });
+  return _identityCache.promise;
+}
+
 const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }) => {
-    const identity = await authProvider.getIdentity?.();
+    const identity = await getCachedIdentity();
     const role = (identity as any)?.role;
 
     if (role === "admin") return { can: true };
