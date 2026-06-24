@@ -36,6 +36,10 @@ export class TextLinksController {
     private websitesService: WebsitesService,
   ) {}
 
+  private getCreatorId(link: any): string | undefined {
+    return typeof link.createdBy === 'object' ? link.createdBy?._id?.toString() : link.createdBy?.toString();
+  }
+
   @Get()
   async findAll(@Req() req: any, @Query(new ParseQueryPipe()) query: ParsedQuery) {
     if (req.user.role === 'sale') {
@@ -49,7 +53,7 @@ export class TextLinksController {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');
 
-    if (req.user.role === 'sale' && link.createdBy?.toString() !== req.user.sub) {
+    if (req.user.role === 'sale' && this.getCreatorId(link) !== req.user.sub) {
       throw new ForbiddenException();
     }
 
@@ -104,7 +108,7 @@ export class TextLinksController {
     const existing = await this.textLinksService.findById(id);
     if (!existing) throw new NotFoundException('Text link not found');
 
-    if (req.user.role === 'sale' && existing.createdBy?.toString() !== req.user.sub) {
+    if (req.user.role === 'sale' && this.getCreatorId(existing) !== req.user.sub) {
       throw new ForbiddenException();
     }
 
@@ -176,7 +180,7 @@ export class TextLinksController {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');
 
-    if (req.user.role === 'sale' && link.createdBy?.toString() !== req.user.sub) {
+    if (req.user.role === 'sale' && this.getCreatorId(link) !== req.user.sub) {
       throw new ForbiddenException();
     }
 
