@@ -77,11 +77,9 @@ export const TextLinkEdit = () => {
             </Form.Item>
           </Col>
         </Row>
-        {isAdmin && (
-          <Form.Item label="Deploy to Websites" name="websiteIds" initialValue={initialWebsiteIds}>
-            <WebsiteSelector />
-          </Form.Item>
-        )}
+        <Form.Item label={isAdmin ? "Deploy to Websites" : "Websites để deploy (sau khi admin duyệt)"} name="websiteIds" initialValue={initialWebsiteIds}>
+          <WebsiteSelector />
+        </Form.Item>
       </Form>
     </Edit>
   );
