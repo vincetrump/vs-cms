@@ -15,25 +15,27 @@ export const authProvider: AuthProvider = {
         localStorage.setItem("token", data.accessToken);
         return { success: true, redirectTo: "/" };
       } catch {
-        return { success: false, error: { name: "Error", message: "Invalid TOTP code" } };
+        throw { name: "Error", message: "Invalid TOTP code" };
       }
     }
 
+    let data: any;
     try {
-      const { data } = await axios.post(`${API_URL}/auth/login`, { username, password });
-
-      if (data.requireTotp) {
-        return {
-          success: false,
-          error: { name: "TotpRequired", message: data.partialToken },
-        };
-      }
-
-      localStorage.setItem("token", data.accessToken);
-      return { success: true, redirectTo: "/" };
+      const response = await axios.post(`${API_URL}/auth/login`, { username, password });
+      data = response.data;
     } catch {
-      return { success: false, error: { name: "Error", message: "Invalid credentials" } };
+      throw { name: "Error", message: "Invalid credentials" };
     }
+
+    if (data.requireTotp) {
+      throw { name: "TotpRequired", message: data.partialToken };
+    }
+
+    localStorage.setItem("token", data.accessToken);
+    if (data.requireTotpSetup) {
+      return { success: true, redirectTo: "/setup-totp" };
+    }
+    return { success: true, redirectTo: "/" };
   },
 
   logout: async () => {
@@ -64,7 +66,7 @@ export const authProvider: AuthProvider = {
       const { data } = await axios.get(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      return { id: data.id, name: data.username, role: data.role };
+      return { id: data.id, name: data.username, role: data.role, totpEnabled: data.totpEnabled };
     } catch {
       return null;
     }

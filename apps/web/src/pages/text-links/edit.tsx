@@ -62,7 +62,7 @@ export const TextLinkEdit = () => {
               name="expiresAt"
               getValueProps={(value) => ({ value: value ? dayjs(value) : null })}
             >
-              <DatePicker style={{ width: "100%" }} showTime />
+              <DatePicker style={{ width: "100%" }} />
             </Form.Item>
           </Col>
         </Row>

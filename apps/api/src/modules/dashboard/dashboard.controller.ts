@@ -1,10 +1,13 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { WebsitesService } from '../websites/websites.service';
 import { TextLinksService } from '../text-links/text-links.service';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin')
 export class DashboardController {
   constructor(
     private websitesService: WebsitesService,

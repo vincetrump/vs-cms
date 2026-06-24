@@ -15,5 +15,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "express-mongo-sanitize": "^2.2.0",
+    "helmet": "^8.2.0"
   }
 }

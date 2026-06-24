@@ -1,43 +1,61 @@
 import { useState } from "react";
-import { useLogin } from "@refinedev/core";
 import { Card, Form, Input, Button, Typography, Space, Alert } from "antd";
 import { UserOutlined, LockOutlined, SafetyOutlined } from "@ant-design/icons";
+import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const { Title } = Typography;
 
+function getRedirectUrl(token: string, requireTotpSetup?: boolean): string {
+  if (requireTotpSetup) return "/setup-totp";
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (payload.role === "sale") return "/text-links";
+  } catch {}
+  return "/";
+}
+
 export const LoginPage = () => {
-  const { mutate: login, isLoading } = useLogin();
   const [step, setStep] = useState<"credentials" | "totp">("credentials");
   const [partialToken, setPartialToken] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleCredentials = (values: { username: string; password: string }) => {
+  const handleCredentials = async (values: { username: string; password: string }) => {
     setError("");
-    login(
-      { ...values },
-      {
-        onError: (err: any) => {
-          if (err?.name === "TotpRequired") {
-            setPartialToken(err.message);
-            setStep("totp");
-          } else {
-            setError(err?.message || "Login failed");
-          }
-        },
-      },
-    );
+    setLoading(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/auth/login`, values);
+      if (data.requireTotp) {
+        setPartialToken(data.partialToken);
+        setStep("totp");
+      } else {
+        localStorage.setItem("token", data.accessToken);
+        window.location.href = getRedirectUrl(data.accessToken, data.requireTotpSetup);
+      }
+    } catch {
+      setError("Invalid credentials");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleTotp = (values: { totpCode: string }) => {
+  const handleTotp = async (values: { totpCode: string }) => {
     setError("");
-    login(
-      { totpCode: values.totpCode, partialToken },
-      {
-        onError: (err: any) => {
-          setError(err?.message || "Invalid TOTP code");
-        },
-      },
-    );
+    setLoading(true);
+    try {
+      const { data } = await axios.post(
+        `${API_URL}/auth/verify-totp`,
+        { code: values.totpCode },
+        { headers: { Authorization: `Bearer ${partialToken}` } },
+      );
+      localStorage.setItem("token", data.accessToken);
+      window.location.href = getRedirectUrl(data.accessToken);
+    } catch {
+      setError("Invalid TOTP code");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,7 +75,7 @@ export const LoginPage = () => {
                 <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
               </Form.Item>
               <Form.Item>
-                <Button type="primary" htmlType="submit" block size="large" loading={isLoading}>
+                <Button type="primary" htmlType="submit" block size="large" loading={loading}>
                   Sign In
                 </Button>
               </Form.Item>
@@ -71,7 +89,7 @@ export const LoginPage = () => {
                 <Input prefix={<SafetyOutlined />} placeholder="000000" size="large" maxLength={6} style={{ textAlign: "center", letterSpacing: 8, fontSize: 24 }} />
               </Form.Item>
               <Form.Item>
-                <Button type="primary" htmlType="submit" block size="large" loading={isLoading}>
+                <Button type="primary" htmlType="submit" block size="large" loading={loading}>
                   Verify
                 </Button>
               </Form.Item>

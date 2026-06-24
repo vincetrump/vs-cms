@@ -15,7 +15,7 @@ export const WebsiteSelector = ({ value = [], onChange }: Props) => {
   const { data, isLoading } = useList({
     resource: "websites",
     filters: [{ field: "status", operator: "eq", value: "active" }],
-    pagination: { pageSize: 100 },
+    pagination: { pageSize: 9999 },
   });
   const screens = useBreakpoint();
 

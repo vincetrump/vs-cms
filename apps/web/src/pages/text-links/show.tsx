@@ -3,8 +3,6 @@ import { Show } from "@refinedev/antd";
 import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
-import { useSearchParams } from "react-router";
-import { useEffect } from "react";
 
 const { Title } = Typography;
 const { useBreakpoint } = Grid;
@@ -12,18 +10,10 @@ const { useBreakpoint } = Grid;
 export const TextLinkShow = () => {
   const { query } = useShow({ resource: "text-links" });
   const record = query?.data?.data as any;
-  const [searchParams] = useSearchParams();
   const { list, edit } = useNavigation();
   const { data: identity } = useGetIdentity<{ role: string }>();
   const isAdmin = identity?.role === "admin";
   const screens = useBreakpoint();
-
-  useEffect(() => {
-    const action = searchParams.get("action");
-    if (action === "approve" && record?._id && record?.status === "pending" && isAdmin) {
-      handleToggle();
-    }
-  }, [record]);
 
   const handleToggle = async () => {
     if (!record) return;
@@ -91,7 +81,7 @@ export const TextLinkShow = () => {
           <Tag>{record?.source}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="Target URL" span={screens.md ? 2 : 1}>
-          <a href={record?.targetUrl} target="_blank" rel="noopener noreferrer" style={{ wordBreak: "break-all" }}>
+          <a href={/^https?:\/\//i.test(record?.targetUrl) ? record?.targetUrl : "#"} target="_blank" rel="noopener noreferrer" style={{ wordBreak: "break-all" }}>
             {record?.targetUrl}
           </a>
         </Descriptions.Item>
@@ -104,6 +94,11 @@ export const TextLinkShow = () => {
         <Descriptions.Item label="Created">
           {record?.createdAt ? new Date(record.createdAt).toLocaleString() : "-"}
         </Descriptions.Item>
+        {isAdmin && (
+          <Descriptions.Item label="Created By">
+            {record?.createdBy?.username || "-"}
+          </Descriptions.Item>
+        )}
       </Descriptions>
 
       {isAdmin && (

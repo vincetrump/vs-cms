@@ -20,7 +20,10 @@ export const SettingsPage = () => {
   const handleConfirmTotp = async (values: { code: string }) => {
     setSettingUpTotp(true);
     try {
-      await axiosInstance.post(`${API_URL}/auth/confirm-totp`, { code: values.code });
+      const { data } = await axiosInstance.post(`${API_URL}/auth/confirm-totp`, { code: values.code });
+      if (data.accessToken) {
+        localStorage.setItem("token", data.accessToken);
+      }
       message.success("TOTP enabled successfully!");
       setTotpSetup(null);
     } catch {

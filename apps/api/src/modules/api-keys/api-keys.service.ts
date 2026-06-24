@@ -39,7 +39,11 @@ export class ApiKeysService {
     });
 
     return {
-      ...apiKey.toObject(),
+      _id: apiKey._id,
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      isActive: apiKey.isActive,
+      rateLimit: apiKey.rateLimit,
       rawKey,
       rawHmacSecret: hmacSecret,
     };
@@ -71,7 +75,8 @@ export class ApiKeysService {
   }
 
   async deactivate(id: string) {
-    return this.apiKeyModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
+    const key = await this.apiKeyModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
+    return key?.toJSON();
   }
 
   async delete(id: string) {

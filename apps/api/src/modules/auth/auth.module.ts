@@ -15,13 +15,16 @@ import { UsersModule } from '../users/users.module';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('jwt.secret') || 'fallback-secret',
-        signOptions: { expiresIn: config.get<string>('jwt.expiration', '24h') as any },
+        secret: config.getOrThrow<string>('jwt.secret'),
+        signOptions: {
+          expiresIn: config.get<string>('jwt.expiration', '24h') as any,
+          algorithm: 'HS256' as const,
+        },
       }),
     }),
   ],
   providers: [AuthService, LocalStrategy, JwtStrategy],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -1,6 +1,6 @@
 import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { LinkDeployment, LinkDeploymentDocument } from './schemas/link-deployment.schema';
 import { SshService } from '../ssh/ssh.service';
 import { WebsitesService } from '../websites/websites.service';
@@ -346,11 +346,28 @@ export class LinkDeploymentsService {
     return links;
   }
 
+  private static VALID_REL_TOKENS = new Set([
+    'nofollow', 'noopener', 'noreferrer', 'sponsored', 'ugc', 'external',
+  ]);
+
+  private sanitizeRel(rel: string): string {
+    return rel.split(/\s+/)
+      .filter((t) => LinkDeploymentsService.VALID_REL_TOKENS.has(t.toLowerCase()))
+      .join(' ');
+  }
+
+  private escapeHtml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   private buildLinkHtml(linkId: string, anchorText: string, targetUrl: string, title: string, rel?: string | null): string {
-    const safeAnchor = anchorText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const safeTitle = title.replace(/"/g, '&quot;');
-    const safeUrl = targetUrl.replace(/"/g, '&quot;');
-    const relAttr = rel ? ` rel="${rel.replace(/"/g, '&quot;')}"` : '';
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      throw new Error('Only http/https URLs are allowed');
+    }
+    const safeAnchor = this.escapeHtml(anchorText);
+    const safeTitle = this.escapeHtml(title);
+    const safeUrl = this.escapeHtml(targetUrl);
+    const relAttr = rel ? ` rel="${this.escapeHtml(this.sanitizeRel(rel))}"` : '';
     return `<!-- vs-cms:${linkId} --><a href="${safeUrl}" title="${safeTitle}" target="_blank"${relAttr}>${safeAnchor}</a><!-- /vs-cms:${linkId} -->`;
   }
 
@@ -372,8 +389,12 @@ export class LinkDeploymentsService {
   }
 
   private removeLink(html: string, linkId: string): string {
+    if (!Types.ObjectId.isValid(linkId)) {
+      throw new Error('Invalid link ID format');
+    }
+    const escapedId = linkId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const linkRegex = new RegExp(
-      `\\n?<!-- vs-cms:${linkId} -->.*?<!-- /vs-cms:${linkId} -->`,
+      `\\n?<!-- vs-cms:${escapedId} -->.*?<!-- /vs-cms:${escapedId} -->`,
       's',
     );
     let result = html.replace(linkRegex, '');

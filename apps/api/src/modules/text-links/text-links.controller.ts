@@ -51,6 +51,10 @@ export class TextLinksController {
       throw new ForbiddenException();
     }
 
+    if (req.user.role !== 'admin') {
+      return link;
+    }
+
     const deployments = await this.linkDeploymentsService.findByTextLink(id);
     return { ...link.toObject(), deployments };
   }
@@ -107,7 +111,7 @@ export class TextLinksController {
 
     const updated = await this.textLinksService.update(id, updateData);
 
-    if (dto.anchorText || dto.targetUrl || dto.rel !== undefined) {
+    if (req.user.role === 'admin' && (dto.anchorText || dto.targetUrl || dto.rel !== undefined)) {
       await this.jobsService.create('redeploy_link', { textLinkId: id });
     }
 
@@ -134,7 +138,9 @@ export class TextLinksController {
       throw new ForbiddenException();
     }
 
-    await this.jobsService.create('undeploy_all', { textLinkId: id });
+    if (req.user.role === 'admin') {
+      await this.jobsService.create('undeploy_all', { textLinkId: id });
+    }
     await this.textLinksService.delete(id);
     await this.discordService.sendDeleteNotification(link);
     return { success: true };

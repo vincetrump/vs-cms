@@ -2,6 +2,9 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from 'ssh2';
 import * as fs from 'fs';
+import * as path from 'path';
+
+const ALLOWED_PATH_ROOTS = ['/home/', '/usr/local/lsws/', '/var/www/', '/tmp/'];
 
 @Injectable()
 export class SshService implements OnModuleDestroy {
@@ -14,6 +17,17 @@ export class SshService implements OnModuleDestroy {
     if (keyPath && fs.existsSync(keyPath)) {
       this.privateKey = fs.readFileSync(keyPath);
     }
+  }
+
+  private validatePath(filePath: string): string {
+    if (/[\x00-\x1f\x7f]/.test(filePath)) {
+      throw new Error('File path contains invalid control characters');
+    }
+    const normalized = path.normalize(filePath);
+    if (!ALLOWED_PATH_ROOTS.some((root) => normalized.startsWith(root))) {
+      throw new Error(`Path ${filePath} is outside allowed roots`);
+    }
+    return normalized;
   }
 
   onModuleDestroy() {
@@ -87,16 +101,18 @@ export class SshService implements OnModuleDestroy {
   }
 
   async readFile(filePath: string, serverIp?: string): Promise<string> {
-    return this.executeCommand(`cat '${filePath.replace(/'/g, "'\\''")}'`, serverIp);
+    const safe = this.validatePath(filePath);
+    return this.executeCommand(`cat '${safe.replace(/'/g, "'\\''")}'`, serverIp);
   }
 
   async writeFile(filePath: string, content: string, serverIp?: string): Promise<void> {
+    const safe = this.validatePath(filePath);
     const conn = await this.getConnection(serverIp);
     return new Promise((resolve, reject) => {
       conn.sftp((err, sftp) => {
         if (err) return reject(err);
 
-        const writeStream = sftp.createWriteStream(filePath);
+        const writeStream = sftp.createWriteStream(safe);
         writeStream.on('close', () => resolve());
         writeStream.on('error', reject);
         writeStream.end(content, 'utf8');
@@ -105,18 +121,20 @@ export class SshService implements OnModuleDestroy {
   }
 
   async backupFile(filePath: string, serverIp?: string): Promise<string> {
-    const backupPath = `${filePath}.bak.${Date.now()}`;
+    const safe = this.validatePath(filePath);
+    const backupPath = `${safe}.bak.${Date.now()}`;
     await this.executeCommand(
-      `cp '${filePath.replace(/'/g, "'\\''")}' '${backupPath.replace(/'/g, "'\\''")}'`,
+      `cp '${safe.replace(/'/g, "'\\''")}' '${backupPath.replace(/'/g, "'\\''")}'`,
       serverIp,
     );
     return backupPath;
   }
 
   async fileExists(filePath: string, serverIp?: string): Promise<boolean> {
+    const safe = this.validatePath(filePath);
     try {
       const result = await this.executeCommand(
-        `test -f '${filePath.replace(/'/g, "'\\''")}' && echo "exists"`,
+        `test -f '${safe.replace(/'/g, "'\\''")}' && echo "exists"`,
         serverIp,
       );
       return result.trim() === 'exists';

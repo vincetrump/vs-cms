@@ -8,9 +8,11 @@ import {
   Headers,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { SkipTotpCheck } from '../../common/decorators/skip-totp-check.decorator';
 import { LoginDto } from './dto/login.dto';
 import { VerifyTotpDto } from './dto/verify-totp.dto';
 
@@ -19,11 +21,15 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @UseGuards(LocalAuthGuard)
+  @SkipTotpCheck()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   async login(@Req() req: any, @Body() _dto: LoginDto) {
     return this.authService.login(req.user);
   }
 
+  @SkipTotpCheck()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify-totp')
   async verifyTotp(
     @Headers('authorization') authHeader: string,
@@ -37,18 +43,21 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @SkipTotpCheck()
   @Get('me')
   async me(@Req() req: any) {
     return this.authService.getProfile(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
+  @SkipTotpCheck()
   @Post('setup-totp')
   async setupTotp(@Req() req: any) {
     return this.authService.setupTotp(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
+  @SkipTotpCheck()
   @Post('confirm-totp')
   async confirmTotp(@Req() req: any, @Body() dto: VerifyTotpDto) {
     return this.authService.confirmTotp(req.user.sub, dto.code);

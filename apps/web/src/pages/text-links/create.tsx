@@ -1,6 +1,7 @@
 import { Create, useForm } from "@refinedev/antd";
 import { useGetIdentity } from "@refinedev/core";
 import { Form, Input, DatePicker, Select, Alert, Row, Col, Grid } from "antd";
+import dayjs from "dayjs";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
 
 const { useBreakpoint } = Grid;
@@ -60,7 +61,7 @@ export const TextLinkCreate = () => {
           </Col>
           <Col span={span}>
             <Form.Item label="Expiration Date" name="expiresAt">
-              <DatePicker style={{ width: "100%" }} showTime />
+              <DatePicker style={{ width: "100%" }} disabledDate={(current) => current && current < dayjs().startOf("day")} />
             </Form.Item>
           </Col>
         </Row>

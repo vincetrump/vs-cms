@@ -29,3 +29,10 @@ export class ApiKey {
 
 export const ApiKeySchema = SchemaFactory.createForClass(ApiKey);
 ApiKeySchema.index({ keyPrefix: 1 });
+ApiKeySchema.set('toJSON', {
+  transform: (_doc, ret: any) => {
+    delete ret.keyHash;
+    delete ret.hmacSecret;
+    return ret;
+  },
+});

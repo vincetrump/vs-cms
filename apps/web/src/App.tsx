@@ -1,9 +1,9 @@
-import { Refine, Authenticated, AccessControlProvider } from "@refinedev/core";
+import { Refine, Authenticated, AccessControlProvider, useGetIdentity } from "@refinedev/core";
 import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinedev/antd";
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router";
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -24,6 +24,16 @@ import { ApiKeyCreate } from "./pages/api-keys/create";
 import { SettingsPage } from "./pages/settings";
 import { JobList } from "./pages/jobs/list";
 import { JobShow } from "./pages/jobs/show";
+import { SetupTotpPage } from "./pages/setup-totp";
+
+const TotpGuard = () => {
+  const { data: identity, isLoading } = useGetIdentity<{ totpEnabled: boolean }>();
+  if (isLoading) return null;
+  if (identity && !identity.totpEnabled) {
+    return <Navigate to="/setup-totp" replace />;
+  }
+  return <Outlet />;
+};
 
 const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }) => {
@@ -35,6 +45,7 @@ const accessControlProvider: AccessControlProvider = {
     const saleAllowed: Record<string, string[]> = {
       "text-links": ["list", "create", "edit", "show", "delete"],
       dashboard: ["list"],
+      settings: ["list"],
     };
 
     const allowed = saleAllowed[resource || ""] || [];
@@ -85,19 +96,38 @@ function App() {
                 show: "/jobs/show/:id",
                 meta: { label: "Jobs", icon: <HistoryOutlined /> },
               },
+              {
+                name: "settings",
+                list: "/settings",
+                meta: { label: "Settings", icon: <SettingOutlined /> },
+              },
             ]}
-            options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
+            options={{ syncWithLocation: true }}
           >
             <Routes>
               <Route
                 element={
-                  <Authenticated key="auth" fallback={<CatchAllNavigate to="/login" />}>
-                    <ThemedLayoutV2 Title={() => <span style={{ fontSize: 18, fontWeight: 700 }}>VS-CMS</span>}>
-                      <Outlet />
-                    </ThemedLayoutV2>
+                  <Authenticated key="auth-setup" fallback={<CatchAllNavigate to="/login" />}>
+                    <Outlet />
                   </Authenticated>
                 }
               >
+                <Route path="/setup-totp" element={<SetupTotpPage />} />
+              </Route>
+              <Route
+                element={
+                  <Authenticated key="auth" fallback={<CatchAllNavigate to="/login" />}>
+                    <TotpGuard />
+                  </Authenticated>
+                }
+              >
+                <Route
+                  element={
+                    <ThemedLayoutV2 Title={() => <span style={{ fontSize: 18, fontWeight: 700 }}>VS-CMS</span>}>
+                      <Outlet />
+                    </ThemedLayoutV2>
+                  }
+                >
                 <Route index element={<DashboardPage />} />
                 <Route path="/websites">
                   <Route index element={<WebsiteList />} />
@@ -118,6 +148,7 @@ function App() {
                   <Route path="show/:id" element={<JobShow />} />
                 </Route>
                 <Route path="/settings" element={<SettingsPage />} />
+                </Route>
               </Route>
               <Route
                 element={

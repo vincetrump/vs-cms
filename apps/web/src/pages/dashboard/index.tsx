@@ -16,7 +16,7 @@ export const DashboardPage = () => {
   return (
     <div>
       <Title level={4}>Dashboard</Title>
-      <Row gutter={[16, 16]}>
+      <Row gutter={[8, 8]} className="dashboard-row">
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic

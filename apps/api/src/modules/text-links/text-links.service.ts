@@ -14,6 +14,7 @@ export class TextLinksService {
     const [data, total] = await Promise.all([
       this.textLinkModel
         .find(query.filter)
+        .populate('createdBy', 'username role')
         .sort(query.sort)
         .skip(query.skip)
         .limit(query.limit)
@@ -24,7 +25,7 @@ export class TextLinksService {
   }
 
   async findById(id: string) {
-    return this.textLinkModel.findById(id).exec();
+    return this.textLinkModel.findById(id).populate('createdBy', 'username role').exec();
   }
 
   async create(data: Partial<TextLink>) {

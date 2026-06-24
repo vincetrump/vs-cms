@@ -25,15 +25,17 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException('Invalid API key');
     }
 
-    if (signature && timestamp) {
-      const body = JSON.stringify(request.body || {});
-      const valid = await this.apiKeysService.validateHmac(keyDoc, body, timestamp, signature);
-      if (!valid) {
-        throw new UnauthorizedException('Invalid HMAC signature');
-      }
+    if (!signature || !timestamp) {
+      throw new UnauthorizedException('HMAC signature and timestamp headers are required');
     }
 
-    request.apiKey = keyDoc;
+    const body = JSON.stringify(request.body || {});
+    const valid = await this.apiKeysService.validateHmac(keyDoc, body, timestamp, signature);
+    if (!valid) {
+      throw new UnauthorizedException('Invalid HMAC signature');
+    }
+
+    request.apiKey = { _id: keyDoc._id, name: keyDoc.name, keyPrefix: keyDoc.keyPrefix, rateLimit: keyDoc.rateLimit };
     return true;
   }
 }

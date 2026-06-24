@@ -1,12 +1,24 @@
+/* Mobile-first: most users are on phones */
 @media (max-width: 768px) {
+  /* Full-width content area */
   .ant-layout-content {
-    padding: 12px 12px 12px 12px !important;
+    padding: 8px !important;
+    margin: 0 !important;
   }
   .ant-layout-has-sider > .ant-layout > .ant-layout-content {
-    padding-top: 8px !important;
+    padding-top: 4px !important;
   }
+
+  /* Sidebar toggle button */
+  .ant-layout-has-sider > button {
+    top: 10px !important;
+    left: 4px !important;
+    z-index: 100;
+  }
+
+  /* Compact page header */
   .ant-page-header {
-    padding-left: 36px !important;
+    padding: 8px 0 !important;
   }
   .ant-page-header-heading {
     flex-direction: column;
@@ -17,25 +29,86 @@
     margin: 0 !important;
     width: 100%;
   }
-  .ant-page-header-heading-extra > * {
-    width: 100%;
+
+  /* Refine page wrapper — remove extra padding */
+  .refine-pageHeader {
+    padding: 8px 0 !important;
   }
-  .ant-layout-has-sider > button {
-    top: 12px !important;
-    left: 4px !important;
-    z-index: 100;
-  }
-  .ant-descriptions-item-label {
-    width: 110px !important;
-    min-width: 110px !important;
-  }
+
+  /* Full-width cards */
   .ant-card-body {
-    padding: 12px !important;
+    padding: 10px !important;
   }
+
+  /* Compact tables */
   .ant-table-cell {
-    padding: 8px 6px !important;
+    padding: 6px 4px !important;
+    font-size: 13px;
   }
   .ant-table-thead > tr > th {
     white-space: nowrap;
+    padding: 8px 4px !important;
+    font-size: 12px;
+  }
+
+  /* Compact descriptions */
+  .ant-descriptions-item-label {
+    width: 90px !important;
+    min-width: 90px !important;
+    font-size: 13px;
+  }
+  .ant-descriptions-item-content {
+    font-size: 13px;
+  }
+
+  /* Dashboard stat cards */
+  .ant-statistic-title {
+    font-size: 12px !important;
+  }
+  .ant-statistic-content {
+    font-size: 20px !important;
+  }
+
+  /* Buttons */
+  .ant-btn-sm {
+    font-size: 12px;
+    padding: 0 6px;
+  }
+
+  /* Tags */
+  .ant-tag {
+    font-size: 11px;
+    margin-inline-end: 4px;
+  }
+
+  /* Pagination compact */
+  .ant-pagination {
+    gap: 2px;
+  }
+  .ant-pagination .ant-pagination-item {
+    min-width: 28px;
+    height: 28px;
+    line-height: 28px;
+  }
+}
+
+/* Dashboard compact cards on mobile */
+@media (max-width: 576px) {
+  .dashboard-row .ant-col {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+  .dashboard-row .ant-card-body {
+    padding: 8px !important;
+  }
+  .dashboard-row .ant-statistic-title {
+    font-size: 11px !important;
+    margin-bottom: 2px !important;
+  }
+  .dashboard-row .ant-statistic-content {
+    font-size: 18px !important;
+  }
+  .dashboard-row .ant-statistic-content-prefix {
+    font-size: 16px !important;
   }
 }

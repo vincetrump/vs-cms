@@ -9,7 +9,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('jwt.secret') || 'fallback-secret',
+      secretOrKey: configService.getOrThrow<string>('jwt.secret'),
+      algorithms: ['HS256'],
     });
   }
 
@@ -17,6 +18,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload.totpVerified) {
       throw new UnauthorizedException('TOTP verification required');
     }
-    return { sub: payload.sub, username: payload.username, role: payload.role };
+    return { sub: payload.sub, username: payload.username, role: payload.role, totpEnabled: !!payload.totpEnabled };
   }
 }

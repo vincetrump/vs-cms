@@ -77,24 +77,45 @@ export const TextLinkList = () => {
         </Button>
       }
     >
-      <Table {...tableProps} rowKey="_id" scroll={{ x: 500 }} size={screens.sm ? "middle" : "small"}>
-        <Table.Column dataIndex="title" title="Title" sorter ellipsis />
+      <Table
+        {...tableProps}
+        rowKey="_id"
+        scroll={screens.sm ? { x: 500 } : undefined}
+        size="small"
+      >
+        <Table.Column
+          dataIndex="title"
+          title="Title"
+          sorter
+          ellipsis={!!screens.sm}
+          render={(title: string, record: any) =>
+            screens.sm ? title : (
+              <div>
+                <div style={{ fontWeight: 500 }}>{title}</div>
+                <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{(record as any).anchorText}</div>
+              </div>
+            )
+          }
+        />
         {screens.md && <Table.Column dataIndex="anchorText" title="Anchor" ellipsis />}
         {screens.lg && (
           <Table.Column
             dataIndex="targetUrl"
             title="Target URL"
-            render={(url: string) => (
-              <a href={url} target="_blank" rel="noopener noreferrer" style={{ maxWidth: 200, display: "inline-block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {url}
-              </a>
-            )}
+            render={(url: string) => {
+              const safeUrl = /^https?:\/\//i.test(url) ? url : "#";
+              return (
+                <a href={safeUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: 200, display: "inline-block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {url}
+                </a>
+              );
+            }}
           />
         )}
         <Table.Column
           dataIndex="status"
           title="Status"
-          width={90}
+          width={screens.sm ? 90 : 70}
           render={(status: string) => <Tag color={statusColors[status]}>{status}</Tag>}
           filters={[
             { text: "Active", value: "active" },
@@ -119,6 +140,14 @@ export const TextLinkList = () => {
             sorter
           />
         )}
+        {isAdmin && screens.md && (
+          <Table.Column
+            dataIndex="createdBy"
+            title="Created By"
+            width={110}
+            render={(user: any) => user?.username || "-"}
+          />
+        )}
         {screens.lg && (
           <Table.Column
             dataIndex="createdAt"
@@ -128,9 +157,8 @@ export const TextLinkList = () => {
           />
         )}
         <Table.Column
-          title="Actions"
-          width={screens.sm ? 120 : 50}
-          fixed="right"
+          title=""
+          width={screens.sm ? 120 : 40}
           render={(_, record: any) =>
             screens.sm ? renderDesktopActions(record) : renderMobileActions(record)
           }

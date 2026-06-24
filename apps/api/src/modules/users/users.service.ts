@@ -78,16 +78,18 @@ export class UsersService {
   }
 
   async seedAdmin(): Promise<void> {
+    if (process.env.NODE_ENV === 'production') {
+      return;
+    }
+
     const existing = await this.findByUsername('admin');
     if (!existing) {
       await this.create('admin', 'admin123', 'admin');
-      console.log('Admin user created: admin / admin123');
     }
 
     const saleExists = await this.findByUsername('sale');
     if (!saleExists) {
       await this.create('sale', 'sale123', 'sale');
-      console.log('Sale user created: sale / sale123');
     }
   }
 }

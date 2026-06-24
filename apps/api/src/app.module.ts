@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -17,6 +18,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ExternalApiModule } from './modules/external-api/external-api.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { DashboardController } from './modules/dashboard/dashboard.controller';
+import { TotpSetupGuard } from './common/guards/totp-setup.guard';
 
 @Module({
   imports: [
@@ -41,5 +43,15 @@ import { DashboardController } from './modules/dashboard/dashboard.controller';
     JobsModule,
   ],
   controllers: [DashboardController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TotpSetupGuard,
+    },
+  ],
 })
 export class AppModule {}

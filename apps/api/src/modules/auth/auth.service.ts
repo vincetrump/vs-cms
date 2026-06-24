@@ -16,7 +16,7 @@ export class AuthService {
 
     if (dbUser.totpEnabled) {
       const partialToken = this.jwtService.sign(
-        { sub: user.sub, username: user.username, role: user.role, totpVerified: false },
+        { sub: user.sub, username: user.username, role: user.role, totpVerified: false, totpEnabled: true },
         { expiresIn: '5m' },
       );
       return { requireTotp: true, partialToken };
@@ -27,8 +27,9 @@ export class AuthService {
       username: user.username,
       role: user.role,
       totpVerified: true,
+      totpEnabled: false,
     });
-    return { requireTotp: false, accessToken: fullToken };
+    return { requireTotp: false, requireTotpSetup: true, accessToken: fullToken };
   }
 
   async verifyTotp(partialToken: string, code: string) {
@@ -56,6 +57,7 @@ export class AuthService {
       username: payload.username,
       role: payload.role,
       totpVerified: true,
+      totpEnabled: true,
     });
     return { accessToken: fullToken };
   }
@@ -64,10 +66,14 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
 
+    if (user.totpEnabled) {
+      throw new UnauthorizedException('TOTP is already enabled. Disable it first to re-enroll.');
+    }
+
     const { secret, otpauthUrl } = await this.usersService.generateTotpSecret(user);
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
-    return { secret, otpauthUrl, qrCodeDataUrl };
+    return { qrCodeDataUrl, secret };
   }
 
   async confirmTotp(userId: string, code: string) {
@@ -80,7 +86,14 @@ export class AuthService {
     }
 
     await this.usersService.enableTotp(userId);
-    return { success: true, message: 'TOTP enabled successfully' };
+    const newToken = this.jwtService.sign({
+      sub: userId,
+      username: user.username,
+      role: user.role,
+      totpVerified: true,
+      totpEnabled: true,
+    });
+    return { success: true, message: 'TOTP enabled successfully', accessToken: newToken };
   }
 
   async getProfile(userId: string) {
