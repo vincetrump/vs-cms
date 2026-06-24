@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Create } from "@refinedev/antd";
 import { Form, Input, InputNumber, Button, Typography, Space, message, Select, Alert, Row, Col, Grid } from "antd";
-import { CopyOutlined } from "@ant-design/icons";
+import { CopyOutlined, DownloadOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useNavigation } from "@refinedev/core";
+import { downloadSdkZip } from "../../utils/downloadSdk";
 
 const { Paragraph, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -41,7 +42,20 @@ export const ApiKeyCreate = () => {
     <Create
       saveButtonProps={{ onClick: () => form.submit(), loading }}
       footerButtons={result ? [
-        <Button key="view" type="primary" onClick={() => show("api-keys", result._id)}>View Details & Example Code</Button>,
+        <Button
+          key="download"
+          type="primary"
+          icon={<DownloadOutlined />}
+          onClick={() => downloadSdkZip({
+            apiKey: result.rawKey,
+            hmacSecret: result.rawHmacSecret,
+            keyName: result.name,
+            apiUrl: window.location.origin,
+          })}
+        >
+          Download SDK (.zip)
+        </Button>,
+        <Button key="view" onClick={() => show("api-keys", result._id)}>View Details</Button>,
         <Button key="done" onClick={() => list("api-keys")}>Back to List</Button>,
       ] : undefined}
     >
@@ -87,7 +101,7 @@ export const ApiKeyCreate = () => {
       ) : (
         <div>
           <Alert
-            message="Lưu thông tin bên dưới ngay! Chúng sẽ không hiển thị lại."
+            message="Lưu thông tin bên dưới ngay! Chúng sẽ không hiển thị lại. Nhấn Download SDK để tải bộ tích hợp gồm credentials, examples và API spec."
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
