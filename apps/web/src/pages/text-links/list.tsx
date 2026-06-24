@@ -144,8 +144,14 @@ export const TextLinkList = () => {
           <Table.Column
             dataIndex="createdBy"
             title="Created By"
-            width={110}
-            render={(user: any) => user?.username || "-"}
+            width={140}
+            render={(user: any, record: any) =>
+              user?.username
+                ? user.username
+                : record.apiKeyId?.name
+                  ? <Tag color="blue">API: {record.apiKeyId.name}</Tag>
+                  : "-"
+            }
           />
         )}
         {screens.lg && (

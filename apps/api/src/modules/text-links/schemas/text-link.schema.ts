@@ -20,7 +20,7 @@ export class TextLink {
   @Prop({ default: 'admin' })
   source: string;
 
-  @Prop({ type: Types.ObjectId, default: null })
+  @Prop({ type: Types.ObjectId, ref: 'ApiKey', default: null })
   apiKeyId: Types.ObjectId | null;
 
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })

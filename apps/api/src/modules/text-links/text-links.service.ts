@@ -15,6 +15,7 @@ export class TextLinksService {
       this.textLinkModel
         .find(query.filter)
         .populate('createdBy', 'username role')
+        .populate('apiKeyId', 'name')
         .sort(query.sort)
         .skip(query.skip)
         .limit(query.limit)
@@ -25,7 +26,7 @@ export class TextLinksService {
   }
 
   async findById(id: string) {
-    return this.textLinkModel.findById(id).populate('createdBy', 'username role').exec();
+    return this.textLinkModel.findById(id).populate('createdBy', 'username role').populate('apiKeyId', 'name').exec();
   }
 
   async create(data: Partial<TextLink>) {
