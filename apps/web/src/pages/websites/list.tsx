@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTable, ShowButton, List } from "@refinedev/antd";
 import { Table, Tag, Button, Grid, Tooltip, Input, Space } from "antd";
 import {
@@ -32,12 +32,24 @@ function parseDomains(input: string): string[] {
 
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
+  const [pendingFilter, setPendingFilter] = useState<{ value: string; seq: number } | null>(null);
 
   const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
     resource: "websites",
     syncWithLocation: false,
   });
   const screens = useBreakpoint();
+
+  useEffect(() => {
+    if (pendingFilter) {
+      if (pendingFilter.value === "") {
+        setFilters([], "replace");
+      } else {
+        setFilters([{ field: "domains", operator: "eq", value: pendingFilter.value }], "replace");
+      }
+      setPendingFilter(null);
+    }
+  }, [pendingFilter]);
 
   const { startPolling, isPolling } = useJobPolling({
     successMessage: "Website sync completed",
@@ -59,7 +71,7 @@ export const WebsiteList = () => {
     const domains = parseDomains(searchText);
     if (domains.length) {
       setCurrent(1);
-      setFilters([{ field: "domains", operator: "eq", value: domains.join(",") }], "replace");
+      setPendingFilter({ value: domains.join(","), seq: Date.now() });
     } else {
       handleClear();
     }
@@ -68,7 +80,7 @@ export const WebsiteList = () => {
   const handleClear = () => {
     setSearchText("");
     setCurrent(1);
-    setFilters([], "replace");
+    setPendingFilter({ value: "", seq: Date.now() });
   };
 
   const hasFilter = filters?.some((f: any) => f.field === "domains");
