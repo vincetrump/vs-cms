@@ -39,7 +39,7 @@ class CreateExternalTextLinkDto {
   websiteIds?: string[];
 }
 
-@Controller('api/v1')
+@Controller('v1')
 @UseGuards(ApiKeyGuard)
 @SkipTotpCheck()
 export class ExternalApiController {
