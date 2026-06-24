@@ -1,7 +1,7 @@
 import { useShow, useNavigation } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
-import { Descriptions, Tag, Grid, Space, Table, Typography, Button } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, LinkOutlined, EyeOutlined } from "@ant-design/icons";
+import { Descriptions, Tag, Grid, Space, Table, Typography, Button, Tooltip, message } from "antd";
+import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, EyeOutlined, CopyOutlined, CloudOutlined, ThunderboltOutlined } from "@ant-design/icons";
 
 const { useBreakpoint } = Grid;
 
@@ -20,6 +20,20 @@ const statusColors: Record<string, string> = {
   expired: "default",
 };
 
+const CopyableText = ({ text }: { text: string }) => (
+  <Space size={4}>
+    <span style={{ wordBreak: "break-all" }}>{text}</span>
+    <Tooltip title="Copy">
+      <Button
+        type="text"
+        size="small"
+        icon={<CopyOutlined />}
+        onClick={() => { navigator.clipboard.writeText(text); message.success("Copied"); }}
+      />
+    </Tooltip>
+  </Space>
+);
+
 export const WebsiteShow = () => {
   const { query } = useShow({ resource: "websites" });
   const record = query?.data?.data as any;
@@ -32,12 +46,35 @@ export const WebsiteShow = () => {
 
   return (
     <Show isLoading={query?.isLoading}>
+      {record?.cloudflareZoneId && (
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Button
+            icon={<CloudOutlined />}
+            href={`https://dash.cloudflare.com/${record.cloudflareAccountId || ""}/${record.domain}/dns/records`}
+            target="_blank"
+          >
+            Cloudflare DNS
+          </Button>
+          <Button
+            icon={<ThunderboltOutlined />}
+            href={`https://dash.cloudflare.com/${record.cloudflareAccountId || ""}/${record.domain}/caching/configuration`}
+            target="_blank"
+          >
+            Cloudflare Cache
+          </Button>
+        </Space>
+      )}
+
       <Descriptions bordered column={screens.md ? 2 : 1} size={screens.sm ? "default" : "small"}>
-        <Descriptions.Item label="Domain">{record?.domain}</Descriptions.Item>
+        <Descriptions.Item label="Domain">
+          {record?.domain ? <CopyableText text={record.domain} /> : "-"}
+        </Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tag color={record?.status === "active" ? "green" : "orange"}>{record?.status}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="Server IP">{record?.serverIp}</Descriptions.Item>
+        <Descriptions.Item label="Server IP">
+          {record?.serverIp ? <CopyableText text={record.serverIp} /> : "-"}
+        </Descriptions.Item>
         <Descriptions.Item label="DNS Status">
           <Tag color={dns.color} icon={dns.icon}>{dns.label}</Tag>
         </Descriptions.Item>
@@ -52,10 +89,10 @@ export const WebsiteShow = () => {
           ) : "-"}
         </Descriptions.Item>
         <Descriptions.Item label="Document Root" span={screens.md ? 2 : 1}>
-          <span style={{ wordBreak: "break-all" }}>{record?.documentRoot || "-"}</span>
+          {record?.documentRoot ? <CopyableText text={record.documentRoot} /> : "-"}
         </Descriptions.Item>
         <Descriptions.Item label="Homepage Path" span={screens.md ? 2 : 1}>
-          <span style={{ wordBreak: "break-all" }}>{record?.homepagePath || "-"}</span>
+          {record?.homepagePath ? <CopyableText text={record.homepagePath} /> : "-"}
         </Descriptions.Item>
         <Descriptions.Item label="Last Synced">
           {record?.lastSyncedAt ? new Date(record.lastSyncedAt).toLocaleString() : "Never"}

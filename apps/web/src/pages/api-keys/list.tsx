@@ -70,43 +70,44 @@ export const ApiKeyList = () => {
         </Button>
       }
     >
-      <Table {...tableProps} rowKey="_id" scroll={{ x: 400 }} size={screens.sm ? "middle" : "small"}>
+      <Table {...tableProps} rowKey="_id" scroll={{ x: 400 }} size="small" tableLayout="auto">
         <Table.Column dataIndex="name" title="Name" ellipsis />
         {screens.md && (
-          <Table.Column dataIndex="keyPrefix" title="Key Prefix" render={(v) => `vscms_${v}...`} />
+          <Table.Column dataIndex="keyPrefix" title="Key Prefix" width={160} render={(v) => `vscms_${v}...`} />
         )}
         <Table.Column
           dataIndex="isActive"
           title="Status"
-          width={90}
+          width={80}
           render={(active: boolean) => (
             <Tag color={active ? "green" : "red"}>{active ? "Active" : "Inactive"}</Tag>
           )}
         />
         {screens.sm && (
-          <Table.Column dataIndex="rateLimit" title="Rate Limit" width={100} render={(v) => `${v}/min`} />
+          <Table.Column dataIndex="rateLimit" title="Rate Limit" width={80} render={(v) => `${v}/min`} />
         )}
         {screens.md && (
           <Table.Column
             dataIndex="lastUsedAt"
             title="Last Used"
-            render={(v) => (v ? new Date(v).toLocaleString() : "Never")}
+            width={120}
+            render={(v) => (v ? new Date(v).toLocaleDateString() : "Never")}
           />
         )}
         {screens.lg && (
           <Table.Column
             dataIndex="createdAt"
             title="Created"
+            width={100}
             render={(v) => new Date(v).toLocaleDateString()}
           />
         )}
         <Table.Column
-          title="Actions"
-          width={screens.sm ? 180 : 50}
-          fixed="right"
+          title=""
+          width={screens.sm ? undefined : 50}
           render={(_, record: any) =>
             screens.sm ? (
-              <Space size={4}>
+              <Space size={4} wrap>
                 <ShowButton size="small" recordItemId={record._id} hideText />
                 {record.isActive && (
                   <Popconfirm title="Deactivate?" onConfirm={() => handleDeactivate(record._id)}>
@@ -114,7 +115,7 @@ export const ApiKeyList = () => {
                   </Popconfirm>
                 )}
                 <Popconfirm title="Delete permanently?" onConfirm={() => handleDelete(record._id)}>
-                  <Button size="small" danger>Delete</Button>
+                  <Button size="small" danger type="text">Delete</Button>
                 </Popconfirm>
               </Space>
             ) : renderMobileActions(record)
