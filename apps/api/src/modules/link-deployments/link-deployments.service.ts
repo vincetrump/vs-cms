@@ -124,7 +124,7 @@ export class LinkDeploymentsService {
   }
 
   async undeployFromAll(textLinkId: string) {
-    const deployments = await this.findDeployed(textLinkId);
+    const deployments = await this.deploymentModel.find({ textLinkId }).exec();
     if (!deployments.length) return [];
 
     const websiteIds = deployments.map((d) => d.websiteId.toString());

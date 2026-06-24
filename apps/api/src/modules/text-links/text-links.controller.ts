@@ -256,8 +256,9 @@ export class TextLinksController {
       if (deployedIds.length) {
         await this.jobsService.create('redeploy_link', { textLinkId: id });
       }
+      const allTrackedIds = existingDeployments.map((d: any) => d.websiteId.toString());
       const requestedIds = ((link as any).requestedWebsiteIds || []).map(String);
-      const newIds = requestedIds.filter((wid: string) => !deployedIds.includes(wid));
+      const newIds = requestedIds.filter((wid: string) => !allTrackedIds.includes(wid));
       if (newIds.length) {
         await this.jobsService.create('deploy_links', {
           textLinkId: id,
