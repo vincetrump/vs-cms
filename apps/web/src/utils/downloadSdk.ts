@@ -135,39 +135,62 @@ const curlExample = (p: SdkParams) =>
 # Đọc credentials từ credentials.txt
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source <(grep -v '^#' "$SCRIPT_DIR/credentials.txt" | grep '=')
+
+# Load credentials
+while IFS='=' read -r key value; do
+  case "$key" in
+    API_KEY|HMAC_SECRET|API_URL) export "$key=$value" ;;
+  esac
+done < <(grep -v '^#' "$SCRIPT_DIR/credentials.txt" | grep '=')
+
+# Timestamp (milliseconds) — tương thích cả macOS và Linux
+timestamp_ms() {
+  python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null \\
+    || echo "$(date +%s)000"
+}
 
 sign() {
   local body="$1" ts="$2"
   echo -n "\${body}\${ts}" | openssl dgst -sha256 -hmac "$HMAC_SECRET" | awk '{print $NF}'
 }
 
+# Hiển thị JSON (dùng jq nếu có, python nếu không)
+pretty() {
+  if command -v jq &>/dev/null; then
+    jq .
+  elif command -v python3 &>/dev/null; then
+    python3 -m json.tool
+  else
+    cat
+  fi
+}
+
 echo "========================================="
 echo " 1. Lấy danh sách websites"
 echo "========================================="
 BODY="{}"
-TS=$(date +%s%3N)
+TS=$(timestamp_ms)
 SIG=$(sign "$BODY" "$TS")
 
-curl -s "$API_URL/websites" \\
+curl -sf "$API_URL/websites" \\
   -H "x-api-key: $API_KEY" \\
   -H "x-timestamp: $TS" \\
-  -H "x-signature: $SIG" | jq .
+  -H "x-signature: $SIG" | pretty
 
 echo ""
 echo "========================================="
 echo " 2. Tạo text link"
 echo "========================================="
 BODY='{"title":"Example Link","anchorText":"Click here","targetUrl":"https://example.com"}'
-TS=$(date +%s%3N)
+TS=$(timestamp_ms)
 SIG=$(sign "$BODY" "$TS")
 
-curl -s -X POST "$API_URL/text-links" \\
+curl -sf -X POST "$API_URL/text-links" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: $API_KEY" \\
   -H "x-timestamp: $TS" \\
   -H "x-signature: $SIG" \\
-  -d "$BODY" | jq .
+  -d "$BODY" | pretty
 `;
 
 const nodeExample = (p: SdkParams) =>

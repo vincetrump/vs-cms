@@ -13,53 +13,60 @@ API_KEY="vscms_YOUR_API_KEY"
 HMAC_SECRET="YOUR_HMAC_SECRET"
 API_URL="${apiUrl}/api/v1"
 
-# --- Helper: tạo signature ---
+# Timestamp (ms) — tương thích macOS + Linux
+timestamp_ms() {
+  python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null \\
+    || echo "$(date +%s)000"
+}
+
 sign() {
   local body="$1" ts="$2"
   echo -n "\${body}\${ts}" | openssl dgst -sha256 -hmac "$HMAC_SECRET" | awk '{print $NF}'
 }
 
+pretty() { if command -v jq &>/dev/null; then jq .; else python3 -m json.tool 2>/dev/null || cat; fi; }
+
 # ========================================
 # 1. Lấy danh sách websites
 # ========================================
 BODY="{}"
-TS=$(date +%s%3N)
+TS=$(timestamp_ms)
 SIG=$(sign "$BODY" "$TS")
 
 echo "=== List Websites ==="
-curl -s "$API_URL/websites" \\
+curl -sf "$API_URL/websites" \\
   -H "x-api-key: $API_KEY" \\
   -H "x-timestamp: $TS" \\
-  -H "x-signature: $SIG" | jq .
+  -H "x-signature: $SIG" | pretty
 
 # ========================================
 # 2. Tạo text link (với websiteIds)
 # ========================================
 BODY='{"title":"My Link","anchorText":"Click here","targetUrl":"https://example.com","websiteIds":["WEBSITE_ID_1","WEBSITE_ID_2"]}'
-TS=$(date +%s%3N)
+TS=$(timestamp_ms)
 SIG=$(sign "$BODY" "$TS")
 
 echo "=== Create Text Link ==="
-curl -s -X POST "$API_URL/text-links" \\
+curl -sf -X POST "$API_URL/text-links" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: $API_KEY" \\
   -H "x-timestamp: $TS" \\
   -H "x-signature: $SIG" \\
-  -d "$BODY" | jq .
+  -d "$BODY" | pretty
 
 # ========================================
 # 3. Xem chi tiết text link
 # ========================================
 LINK_ID="YOUR_LINK_ID"
 BODY="{}"
-TS=$(date +%s%3N)
+TS=$(timestamp_ms)
 SIG=$(sign "$BODY" "$TS")
 
 echo "=== Get Text Link ==="
-curl -s "$API_URL/text-links/$LINK_ID" \\
+curl -sf "$API_URL/text-links/$LINK_ID" \\
   -H "x-api-key: $API_KEY" \\
   -H "x-timestamp: $TS" \\
-  -H "x-signature: $SIG" | jq .`;
+  -H "x-signature: $SIG" | pretty`;
 
 const getNodeExample = (apiUrl: string) => `const crypto = require('crypto');
 
