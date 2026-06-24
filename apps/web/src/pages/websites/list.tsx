@@ -33,7 +33,7 @@ function parseDomains(input: string): string[] {
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
 
-  const { tableProps, tableQuery, setFilters, filters } = useTable({
+  const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
     resource: "websites",
     syncWithLocation: true,
   });
@@ -58,6 +58,7 @@ export const WebsiteList = () => {
   const handleSearch = () => {
     const domains = parseDomains(searchText);
     if (domains.length) {
+      setCurrent(1);
       setFilters([{ field: "domains", operator: "eq", value: domains.join(",") }], "replace");
     } else {
       handleClear();
@@ -66,6 +67,7 @@ export const WebsiteList = () => {
 
   const handleClear = () => {
     setSearchText("");
+    setCurrent(1);
     setFilters([], "replace");
   };
 

@@ -1,7 +1,6 @@
 import type { AuthProvider } from "@refinedev/core";
 import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import { API_URL } from "./dataProvider";
 
 export const authProvider: AuthProvider = {
   login: async ({ username, password, totpCode, partialToken }) => {
