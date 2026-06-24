@@ -85,6 +85,7 @@ export class TextLinksController {
       status: isSale ? 'pending' : 'active',
       source: isSale ? 'sale' : 'admin',
       createdBy: req.user.sub,
+      ...(dto.websiteIds?.length ? { requestedWebsiteIds: dto.websiteIds } : {}),
     });
 
     if (!isSale && dto.websiteIds?.length) {

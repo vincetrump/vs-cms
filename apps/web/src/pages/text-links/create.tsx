@@ -65,11 +65,9 @@ export const TextLinkCreate = () => {
             </Form.Item>
           </Col>
         </Row>
-        {isAdmin && (
-          <Form.Item label="Deploy to Websites" name="websiteIds">
-            <WebsiteSelector />
-          </Form.Item>
-        )}
+        <Form.Item label={isAdmin ? "Deploy to Websites" : "Chọn websites để deploy (sau khi admin duyệt)"} name="websiteIds">
+          <WebsiteSelector />
+        </Form.Item>
       </Form>
     </Create>
   );
