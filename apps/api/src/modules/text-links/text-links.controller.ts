@@ -17,6 +17,7 @@ import { TextLinksService } from './text-links.service';
 import { LinkDeploymentsService } from '../link-deployments/link-deployments.service';
 import { DiscordService } from '../discord/discord.service';
 import { JobsService } from '../jobs/jobs.service';
+import { WebsitesService } from '../websites/websites.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -32,6 +33,7 @@ export class TextLinksController {
     private linkDeploymentsService: LinkDeploymentsService,
     private discordService: DiscordService,
     private jobsService: JobsService,
+    private websitesService: WebsitesService,
   ) {}
 
   @Get()
@@ -56,7 +58,18 @@ export class TextLinksController {
     }
 
     const deployments = await this.linkDeploymentsService.findByTextLink(id);
-    return { ...link.toObject(), deployments };
+    const obj = link.toObject();
+
+    if (obj.requestedWebsiteIds?.length) {
+      const websites = await Promise.all(
+        obj.requestedWebsiteIds.map((wid: string) => this.websitesService.findById(wid)),
+      );
+      obj.requestedWebsites = websites
+        .filter(Boolean)
+        .map((w: any) => ({ _id: w._id, domain: w.domain }));
+    }
+
+    return { ...obj, deployments };
   }
 
   @Post()

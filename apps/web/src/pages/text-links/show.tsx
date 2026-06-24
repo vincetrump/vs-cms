@@ -96,7 +96,20 @@ export const TextLinkShow = () => {
         </Descriptions.Item>
         {isAdmin && (
           <Descriptions.Item label="Created By">
-            {record?.createdBy?.username || "-"}
+            {record?.createdBy?.username
+              ? record.createdBy.username
+              : record?.apiKeyId?.name
+                ? <Tag color="blue">API: {record.apiKeyId.name}</Tag>
+                : "-"}
+          </Descriptions.Item>
+        )}
+        {record?.requestedWebsites?.length > 0 && (
+          <Descriptions.Item label="Requested Websites" span={screens.md ? 2 : 1}>
+            <Space wrap>
+              {record.requestedWebsites.map((w: any) => (
+                <Tag key={w._id} color="cyan">{w.domain}</Tag>
+              ))}
+            </Space>
           </Descriptions.Item>
         )}
       </Descriptions>
