@@ -11,8 +11,6 @@ import {
   SearchOutlined,
   ClearOutlined,
 } from "@ant-design/icons";
-import { useNavigate } from "react-router";
-import qs from "qs";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useJobPolling } from "../../hooks/useJobPolling";
 
@@ -34,11 +32,9 @@ function parseDomains(input: string): string[] {
 
 export const WebsiteList = () => {
   const [searchText, setSearchText] = useState("");
-  const navigate = useNavigate();
 
-  const { tableProps, tableQuery, filters } = useTable({
+  const { tableProps, tableQuery, setFilters, filters, setCurrent } = useTable({
     resource: "websites",
-    syncWithLocation: true,
   });
   const screens = useBreakpoint();
 
@@ -61,11 +57,8 @@ export const WebsiteList = () => {
   const handleSearch = () => {
     const domains = parseDomains(searchText);
     if (domains.length) {
-      const query = qs.stringify(
-        { pageSize: 10, current: 1, filters: [{ field: "domains", operator: "eq", value: domains.join(",") }] },
-        { addQueryPrefix: true, encode: false, arrayFormat: "indices" as const },
-      );
-      navigate(`/websites${query}`, { replace: true });
+      setCurrent(1);
+      setFilters([{ field: "domains", operator: "eq", value: domains.join(",") }], "replace");
     } else {
       handleClear();
     }
@@ -73,7 +66,8 @@ export const WebsiteList = () => {
 
   const handleClear = () => {
     setSearchText("");
-    navigate("/websites?pageSize=10&current=1", { replace: true });
+    setCurrent(1);
+    setFilters([], "replace");
   };
 
   const hasFilter = filters?.some((f: any) => f.field === "domains");
