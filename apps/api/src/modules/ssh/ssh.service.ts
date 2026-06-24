@@ -10,6 +10,7 @@ const ALLOWED_PATH_ROOTS = ['/home/', '/usr/local/lsws/', '/var/www/', '/tmp/'];
 export class SshService implements OnModuleDestroy {
   private readonly logger = new Logger(SshService.name);
   private connections = new Map<string, Client>();
+  private pending = new Map<string, Promise<Client>>();
   private privateKey: Buffer | null = null;
 
   constructor(private configService: ConfigService) {
@@ -44,7 +45,10 @@ export class SshService implements OnModuleDestroy {
     const existing = this.connections.get(ip);
     if (existing) return existing;
 
-    return new Promise((resolve, reject) => {
+    const inflight = this.pending.get(ip);
+    if (inflight) return inflight;
+
+    const promise = new Promise<Client>((resolve, reject) => {
       const conn = new Client();
       const timeout = setTimeout(() => {
         conn.end();
@@ -54,12 +58,14 @@ export class SshService implements OnModuleDestroy {
       conn.on('ready', () => {
         clearTimeout(timeout);
         this.connections.set(ip, conn);
+        this.pending.delete(ip);
         resolve(conn);
       });
 
       conn.on('error', (err) => {
         clearTimeout(timeout);
         this.connections.delete(ip);
+        this.pending.delete(ip);
         reject(err);
       });
 
@@ -73,6 +79,9 @@ export class SshService implements OnModuleDestroy {
       }
       conn.connect(connectConfig);
     });
+
+    this.pending.set(ip, promise);
+    return promise;
   }
 
   async executeCommand(command: string, serverIp?: string): Promise<string> {
