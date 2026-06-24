@@ -21,6 +21,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY package.json ./
+COPY apps/api/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 WORKDIR /app/apps/api
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["/app/entrypoint.sh"]

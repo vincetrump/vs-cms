@@ -30,6 +30,12 @@ services:
       ADMIN_URL: ${ADMIN_URL:-http://localhost:5173}
     volumes:
       - ${SSH_KEY_PATH:-~/.ssh/id_rsa}:/root/.ssh/id_rsa:ro
+      - ./logs/api:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build:
@@ -40,6 +46,11 @@ services:
       - "5174:80"
     depends_on:
       - api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   seed:
     build:
