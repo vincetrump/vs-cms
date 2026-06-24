@@ -114,6 +114,14 @@ export class TextLinksController {
       changes.anchorText = { old: existing.anchorText, new: dto.anchorText };
     if (dto.targetUrl && dto.targetUrl !== existing.targetUrl)
       changes.targetUrl = { old: existing.targetUrl, new: dto.targetUrl };
+    if (dto.rel !== undefined && (dto.rel || null) !== (existing.rel || null))
+      changes.rel = { old: existing.rel || 'not set', new: dto.rel || 'not set' };
+    if (dto.expiresAt !== undefined) {
+      const oldExp = existing.expiresAt ? new Date(existing.expiresAt).toISOString() : null;
+      const newExp = dto.expiresAt || null;
+      if (oldExp !== newExp)
+        changes.expiresAt = { old: oldExp || 'Never', new: newExp || 'Never' };
+    }
 
     const updateData: any = {};
     if (dto.title) updateData.title = dto.title;
