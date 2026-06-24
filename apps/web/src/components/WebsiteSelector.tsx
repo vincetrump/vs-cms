@@ -29,17 +29,26 @@ export const WebsiteSelector = ({ value = [], onChange }: Props) => {
 
   const websites = data?.data ?? [];
 
+  const sortedWebsites = useMemo(() => {
+    return [...websites].sort((a: any, b: any) => {
+      const aSelected = selectedKeys.includes(a._id) ? 0 : 1;
+      const bSelected = selectedKeys.includes(b._id) ? 0 : 1;
+      if (aSelected !== bSelected) return aSelected - bSelected;
+      return a.domain.localeCompare(b.domain);
+    });
+  }, [websites, selectedKeys]);
+
   const filteredWebsites = useMemo(() => {
-    if (!filterText.trim()) return websites;
+    if (!filterText.trim()) return sortedWebsites;
     const terms = filterText
       .split(/[,\n]+/)
       .map((t) => t.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase())
       .filter(Boolean);
-    if (!terms.length) return websites;
-    return websites.filter((w: any) =>
+    if (!terms.length) return sortedWebsites;
+    return sortedWebsites.filter((w: any) =>
       terms.some((term) => w.domain.toLowerCase().includes(term)),
     );
-  }, [websites, filterText]);
+  }, [sortedWebsites, filterText]);
 
   const updateSelection = useCallback(
     (ids: string[]) => {
