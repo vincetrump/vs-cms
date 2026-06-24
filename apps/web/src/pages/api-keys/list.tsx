@@ -70,7 +70,7 @@ export const ApiKeyList = () => {
         </Button>
       }
     >
-      <Table {...tableProps} rowKey="_id" scroll={{ x: 400 }} size="small" tableLayout="auto">
+      <Table {...tableProps} rowKey="_id" size="small" tableLayout="auto">
         <Table.Column dataIndex="name" title="Name" ellipsis />
         {screens.md && (
           <Table.Column dataIndex="keyPrefix" title="Key Prefix" width={160} render={(v) => `vscms_${v}...`} />
