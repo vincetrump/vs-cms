@@ -211,8 +211,19 @@ const guides: GuideSection[] = [
         <Divider />
         <Title level={5}>Endpoints</Title>
         <ul>
+          <li><Text code>GET /api/v1/websites</Text> — Lấy danh sách websites hỗ trợ (id, domain, status)</li>
           <li><Text code>POST /api/v1/text-links</Text> — Tạo text link mới (status: pending)</li>
           <li><Text code>GET /api/v1/text-links/:id</Text> — Xem chi tiết text link đã tạo</li>
+        </ul>
+        <Divider />
+        <Title level={5}>Tạo Text Link qua API</Title>
+        <Paragraph>Body JSON gồm:</Paragraph>
+        <ul>
+          <li><Text code>title</Text> (bắt buộc) — Tên nội bộ</li>
+          <li><Text code>anchorText</Text> (bắt buộc) — Văn bản hiển thị</li>
+          <li><Text code>targetUrl</Text> (bắt buộc) — URL đích (http/https)</li>
+          <li><Text code>expiresAt</Text> (tuỳ chọn) — Ngày hết hạn (ISO 8601)</li>
+          <li><Text code>websiteIds</Text> (tuỳ chọn) — Mảng ID websites muốn deploy. Dùng <Text code>GET /api/v1/websites</Text> để lấy danh sách ID. Khi Admin duyệt, link sẽ tự động deploy vào các websites đã chọn.</li>
         </ul>
       </>
     ),

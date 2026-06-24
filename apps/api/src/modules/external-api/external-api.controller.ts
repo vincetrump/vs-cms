@@ -12,8 +12,9 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { SkipTotpCheck } from '../../common/decorators/skip-totp-check.decorator';
 import { TextLinksService } from '../text-links/text-links.service';
+import { WebsitesService } from '../websites/websites.service';
 import { DiscordService } from '../discord/discord.service';
-import { IsString, IsUrl, IsOptional, IsDateString, MaxLength } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsDateString, IsArray, MaxLength } from 'class-validator';
 
 class CreateExternalTextLinkDto {
   @IsString()
@@ -31,6 +32,11 @@ class CreateExternalTextLinkDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  websiteIds?: string[];
 }
 
 @Controller('api/v1')
@@ -39,8 +45,20 @@ class CreateExternalTextLinkDto {
 export class ExternalApiController {
   constructor(
     private textLinksService: TextLinksService,
+    private websitesService: WebsitesService,
     private discordService: DiscordService,
   ) {}
+
+  @Get('websites')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  async listWebsites() {
+    const websites = await this.websitesService.findAllActive();
+    return websites.map((w) => ({
+      id: w._id,
+      domain: w.domain,
+      status: w.status,
+    }));
+  }
 
   @Post('text-links')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -53,6 +71,7 @@ export class ExternalApiController {
       status: 'pending',
       source: 'api',
       apiKeyId: req.apiKey._id,
+      requestedWebsiteIds: dto.websiteIds || [],
     });
 
     await this.discordService.sendNewLinkNotification(link);

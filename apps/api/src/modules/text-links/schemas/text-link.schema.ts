@@ -31,6 +31,9 @@ export class TextLink {
 
   @Prop({ type: Date, default: null })
   expiresAt: Date | null;
+
+  @Prop({ type: [String], default: [] })
+  requestedWebsiteIds: string[];
 }
 
 export const TextLinkSchema = SchemaFactory.createForClass(TextLink);

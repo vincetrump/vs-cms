@@ -203,6 +203,12 @@ export class TextLinksController {
       return updated;
     } else if (link.status === 'pending') {
       const updated = await this.textLinksService.update(id, { status: 'active' });
+      if ((link as any).requestedWebsiteIds?.length) {
+        await this.jobsService.create('deploy_links', {
+          textLinkId: id,
+          websiteIds: (link as any).requestedWebsiteIds,
+        });
+      }
       await this.discordService.sendStatusChangeNotification(updated!, 'pending', 'active');
       return updated;
     }
