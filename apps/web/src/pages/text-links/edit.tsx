@@ -1,6 +1,6 @@
 import { Edit, useForm } from "@refinedev/antd";
 import { useGetIdentity } from "@refinedev/core";
-import { Form, Input, DatePicker, Select, Row, Col, Grid } from "antd";
+import { Form, Input, DatePicker, Select, Row, Col, Grid, Alert } from "antd";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
 import dayjs from "dayjs";
 
@@ -26,6 +26,14 @@ export const TextLinkEdit = () => {
 
   return (
     <Edit saveButtonProps={saveButtonProps}>
+      {!isAdmin && record?.status === "active" && (
+        <Alert
+          message="Thay đổi nội dung (anchor text, URL, rel) sẽ cần admin duyệt trước khi cập nhật trên websites."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Form {...formProps} layout="vertical">
         <Row gutter={16}>
           <Col span={span}>

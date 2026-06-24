@@ -82,6 +82,50 @@ export class DiscordService {
     await this.sendWebhook({ embeds: [embed] });
   }
 
+  async sendPendingReviewNotification(link: any, changes: Record<string, { old: any; new: any }>) {
+    const changeLines = Object.entries(changes)
+      .filter(([key]) => key !== 'status')
+      .map(([key, val]) => `**${key}**: \`${val.old}\` → \`${val.new}\``)
+      .join('\n');
+
+    const embed = {
+      title: '⚠️ Text Link Edit — Pending Approval',
+      color: 0xf39c12,
+      fields: [
+        { name: 'Title', value: link.title, inline: true },
+        { name: 'Status', value: '`active` → `pending`', inline: true },
+        { name: 'Changes', value: changeLines || 'No field changes' },
+        {
+          name: 'Actions',
+          value: `[✅ Review & Approve](${this.adminUrl}/text-links/show/${link._id})`,
+        },
+      ],
+      footer: { text: `ID: ${link._id} • Websites keep old content until approved` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
+  async sendPendingReminderNotification(links: any[]) {
+    const lines = links.slice(0, 15).map(
+      (l: any) => `• **${l.title}** — [Review](${this.adminUrl}/text-links/show/${l._id})`,
+    );
+
+    const embed = {
+      title: '🔔 Pending Links Reminder',
+      color: 0xf39c12,
+      description: `${links.length} text link(s) awaiting admin approval:`,
+      fields: [{ name: 'Links', value: lines.join('\n') }],
+      timestamp: new Date().toISOString(),
+    };
+    if (links.length > 15) {
+      embed.fields.push({ name: '', value: `...and ${links.length - 15} more` });
+    }
+
+    await this.sendWebhook({ embeds: [embed] });
+  }
+
   async sendDeploymentNotification(link: any, results: any[]) {
     const success = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;

@@ -82,7 +82,7 @@ export class TextLinksController {
       targetUrl: dto.targetUrl,
       rel: dto.rel || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-      status: isSale ? 'disabled' : 'active',
+      status: isSale ? 'pending' : 'active',
       source: isSale ? 'sale' : 'admin',
       createdBy: req.user.sub,
     });
@@ -138,9 +138,17 @@ export class TextLinksController {
     if (dto.expiresAt !== undefined) updateData.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
     if (dto.websiteIds) updateData.requestedWebsiteIds = dto.websiteIds;
 
+    const isSale = req.user.role === 'sale';
+    const hasContentChanges = !!(dto.anchorText || dto.targetUrl || dto.rel !== undefined);
+
+    if (isSale && existing.status === 'active' && hasContentChanges) {
+      updateData.status = 'pending';
+      changes.status = { old: 'active', new: 'pending (awaiting approval)' };
+    }
+
     const updated = await this.textLinksService.update(id, updateData);
 
-    if (req.user.role === 'admin' && (dto.anchorText || dto.targetUrl || dto.rel !== undefined)) {
+    if (req.user.role === 'admin' && hasContentChanges) {
       await this.jobsService.create('redeploy_link', { textLinkId: id });
     }
 
@@ -152,7 +160,11 @@ export class TextLinksController {
     }
 
     if (Object.keys(changes).length > 0) {
-      await this.discordService.sendUpdateNotification(updated!, changes);
+      if (isSale && updateData.status === 'pending') {
+        await this.discordService.sendPendingReviewNotification(updated!, changes);
+      } else {
+        await this.discordService.sendUpdateNotification(updated!, changes);
+      }
     }
 
     return updated;
@@ -232,10 +244,19 @@ export class TextLinksController {
       return updated;
     } else if (link.status === 'pending') {
       const updated = await this.textLinksService.update(id, { status: 'active' });
-      if ((link as any).requestedWebsiteIds?.length) {
+      const existingDeployments = await this.linkDeploymentsService.findByTextLink(id);
+      const deployedIds = existingDeployments
+        .filter((d: any) => d.status === 'deployed')
+        .map((d: any) => d.websiteId.toString());
+      if (deployedIds.length) {
+        await this.jobsService.create('redeploy_link', { textLinkId: id });
+      }
+      const requestedIds = ((link as any).requestedWebsiteIds || []).map(String);
+      const newIds = requestedIds.filter((wid: string) => !deployedIds.includes(wid));
+      if (newIds.length) {
         await this.jobsService.create('deploy_links', {
           textLinkId: id,
-          websiteIds: (link as any).requestedWebsiteIds,
+          websiteIds: newIds,
         });
       }
       await this.discordService.sendStatusChangeNotification(updated!, 'pending', 'active');

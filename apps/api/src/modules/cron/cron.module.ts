@@ -1,12 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronService } from './cron.service';
 import { JobsModule } from '../jobs/jobs.module';
+import { TextLinksModule } from '../text-links/text-links.module';
+import { DiscordModule } from '../discord/discord.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    JobsModule,
+    forwardRef(() => JobsModule),
+    forwardRef(() => TextLinksModule),
+    DiscordModule,
   ],
   providers: [CronService],
 })
