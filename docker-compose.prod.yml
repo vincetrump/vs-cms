@@ -29,7 +29,7 @@ services:
       API_PORT: "3001"
       ADMIN_URL: https://vs-cms.sonkemmiracleapo.com
     volumes:
-      - /root/.ssh/id_rsa:/root/.ssh/id_rsa:ro
+      - /root/.ssh/cyberpanel:/root/.ssh/id_rsa:ro
 
   web:
     build:
