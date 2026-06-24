@@ -58,7 +58,7 @@ export class TextLinksController {
     }
 
     const deployments = await this.linkDeploymentsService.findByTextLink(id);
-    const obj = link.toObject();
+    const obj: any = link.toObject();
 
     if (obj.requestedWebsiteIds?.length) {
       const websites = await Promise.all(
