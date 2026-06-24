@@ -55,7 +55,7 @@ const accessControlProvider: AccessControlProvider = {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter useTransitions={false}>
       <ConfigProvider theme={RefineThemes.Blue}>
         <AntdApp>
           <Refine
