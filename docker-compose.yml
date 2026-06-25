@@ -5,7 +5,10 @@ services:
     volumes:
       - mongo-data:/data/db
       - ./logs/mongo:/var/log/mongodb
-    command: ["mongod", "--logpath", "/var/log/mongodb/mongod.log", "--logappend", "--bind_ip_all"]
+    entrypoint:
+      - bash
+      - -c
+      - chown mongodb:mongodb /var/log/mongodb && exec docker-entrypoint.sh mongod --logpath /var/log/mongodb/mongod.log --logappend --bind_ip_all
     environment:
       MONGO_INITDB_DATABASE: vs-cms
     logging:
