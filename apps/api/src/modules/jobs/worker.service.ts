@@ -4,6 +4,7 @@ import { LinkDeploymentsService } from '../link-deployments/link-deployments.ser
 import { SyncService } from '../sync/sync.service';
 import { TextLinksService } from '../text-links/text-links.service';
 import { DiscordService } from '../discord/discord.service';
+import { TextLinkHistoryService } from '../text-link-history/text-link-history.service';
 import { JobDocument } from './schemas/job.schema';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class WorkerService implements OnModuleInit {
     private syncService: SyncService,
     private textLinksService: TextLinksService,
     private discordService: DiscordService,
+    private historyService: TextLinkHistoryService,
   ) {}
 
   onModuleInit() {
@@ -132,6 +134,13 @@ export class WorkerService implements OnModuleInit {
 
     await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
     await this.discordService.sendDeploymentNotification(link, results);
+
+    await this.historyService.log({
+      textLinkId,
+      action: failed > 0 ? 'deploy_failed' : 'deploy_completed',
+      metadata: { jobId, success, failed, total: results.length, websiteIds },
+    });
+
     return { success, failed, total: results.length };
   }
 
@@ -148,6 +157,13 @@ export class WorkerService implements OnModuleInit {
     }
 
     await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
+
+    await this.historyService.log({
+      textLinkId,
+      action: 'undeploy_completed',
+      metadata: { jobId, removed: results.filter((r) => r.success).length, total: results.length, websiteIds },
+    });
+
     return { removed: results.filter((r) => r.success).length, total: results.length };
   }
 
@@ -156,6 +172,13 @@ export class WorkerService implements OnModuleInit {
     await this.jobsService.addLog(jobId, 'info', 'Undeploying from all websites...');
     const results = await this.linkDeploymentsService.undeployFromAll(textLinkId);
     await this.jobsService.addLog(jobId, 'info', `Removed from ${results.length} websites`);
+
+    await this.historyService.log({
+      textLinkId,
+      action: 'undeploy_completed',
+      metadata: { jobId, removed: results.length },
+    });
+
     return { removed: results.length };
   }
 
@@ -164,6 +187,13 @@ export class WorkerService implements OnModuleInit {
     await this.jobsService.addLog(jobId, 'info', 'Redeploying link to all current websites...');
     await this.linkDeploymentsService.redeployLink(textLinkId);
     await this.jobsService.addLog(jobId, 'info', 'Redeployment completed');
+
+    await this.historyService.log({
+      textLinkId,
+      action: 'redeployed',
+      metadata: { jobId },
+    });
+
     return { redeployed: true };
   }
 
@@ -199,6 +229,14 @@ export class WorkerService implements OnModuleInit {
       await this.jobsService.addLog(jobId, 'info', `Processing expired link: ${link.anchorText}`);
       await this.linkDeploymentsService.undeployFromAll(link._id.toString());
       await this.textLinksService.update(link._id.toString(), { status: 'expired' });
+
+      await this.historyService.log({
+        textLinkId: link._id.toString(),
+        action: 'expired',
+        changes: { status: { old: link.status, new: 'expired' } },
+        metadata: { jobId, expiresAt: link.expiresAt?.toISOString() },
+      });
+
       await this.jobsService.updateProgress(jobId, i + 1, expired.length);
     }
 

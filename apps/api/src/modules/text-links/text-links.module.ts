@@ -7,6 +7,7 @@ import { LinkDeploymentsModule } from '../link-deployments/link-deployments.modu
 import { DiscordModule } from '../discord/discord.module';
 import { JobsModule } from '../jobs/jobs.module';
 import { WebsitesModule } from '../websites/websites.module';
+import { TextLinkHistoryModule } from '../text-link-history/text-link-history.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { WebsitesModule } from '../websites/websites.module';
     forwardRef(() => JobsModule),
     DiscordModule,
     forwardRef(() => WebsitesModule),
+    TextLinkHistoryModule,
   ],
   providers: [TextLinksService],
   controllers: [TextLinksController],

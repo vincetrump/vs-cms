@@ -18,6 +18,7 @@ import { LinkDeploymentsService } from '../link-deployments/link-deployments.ser
 import { DiscordService } from '../discord/discord.service';
 import { JobsService } from '../jobs/jobs.service';
 import { WebsitesService } from '../websites/websites.service';
+import { TextLinkHistoryService } from '../text-link-history/text-link-history.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -34,10 +35,28 @@ export class TextLinksController {
     private discordService: DiscordService,
     private jobsService: JobsService,
     private websitesService: WebsitesService,
+    private historyService: TextLinkHistoryService,
   ) {}
 
   private getCreatorId(link: any): string | undefined {
     return typeof link.createdBy === 'object' ? link.createdBy?._id?.toString() : link.createdBy?.toString();
+  }
+
+  @Get(':id/history')
+  async getHistory(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const link = await this.textLinksService.findById(id);
+    if (!link) throw new NotFoundException('Text link not found');
+
+    if (req.user.role === 'sale' && this.getCreatorId(link) !== req.user.sub) {
+      throw new ForbiddenException();
+    }
+
+    return this.historyService.findByTextLink(id, Number(page) || 1, Number(limit) || 50);
   }
 
   @Get()
@@ -98,6 +117,13 @@ export class TextLinksController {
         websiteIds: dto.websiteIds,
       });
     }
+
+    await this.historyService.log({
+      textLinkId: link._id.toString(),
+      action: 'created',
+      performedBy: req.user.sub,
+      metadata: { status: link.status, source: link.source },
+    });
 
     await this.discordService.sendNewLinkNotification(link);
     return link;
@@ -165,6 +191,13 @@ export class TextLinksController {
     }
 
     if (Object.keys(changes).length > 0) {
+      await this.historyService.log({
+        textLinkId: id,
+        action: 'updated',
+        performedBy: req.user.sub,
+        changes,
+      });
+
       if (isSale && updateData.status === 'pending') {
         await this.discordService.sendPendingReviewNotification(updated!, changes);
       } else {
@@ -184,6 +217,13 @@ export class TextLinksController {
       throw new ForbiddenException();
     }
 
+    await this.historyService.log({
+      textLinkId: id,
+      action: 'deleted',
+      performedBy: req.user.sub,
+      metadata: { title: link.title, anchorText: link.anchorText },
+    });
+
     if (req.user.role === 'admin') {
       await this.jobsService.create('undeploy_all', { textLinkId: id });
     }
@@ -195,6 +235,7 @@ export class TextLinksController {
   @Post(':id/deploy')
   @Roles('admin')
   async deploy(
+    @Req() req: any,
     @Param('id') id: string,
     @Body('websiteIds') websiteIds: string[],
   ) {
@@ -208,12 +249,21 @@ export class TextLinksController {
       textLinkId: id,
       websiteIds,
     });
+
+    await this.historyService.log({
+      textLinkId: id,
+      action: 'deployed',
+      performedBy: req.user.sub,
+      metadata: { websiteIds, jobId: job._id.toString() },
+    });
+
     return { jobId: job._id, message: 'Deploy job queued' };
   }
 
   @Post(':id/undeploy')
   @Roles('admin')
   async undeploy(
+    @Req() req: any,
     @Param('id') id: string,
     @Body('websiteIds') websiteIds: string[],
   ) {
@@ -222,18 +272,32 @@ export class TextLinksController {
       textLinkId: id,
       websiteIds,
     });
+
+    await this.historyService.log({
+      textLinkId: id,
+      action: 'undeployed',
+      performedBy: req.user.sub,
+      metadata: { websiteIds, jobId: job._id.toString() },
+    });
+
     return { jobId: job._id, message: 'Undeploy job queued' };
   }
 
   @Post(':id/toggle')
   @Roles('admin')
-  async toggle(@Param('id') id: string) {
+  async toggle(@Req() req: any, @Param('id') id: string) {
     const link = await this.textLinksService.findById(id);
     if (!link) throw new NotFoundException('Text link not found');
 
     if (link.status === 'active') {
       await this.jobsService.create('undeploy_all', { textLinkId: id });
       const updated = await this.textLinksService.update(id, { status: 'disabled' });
+      await this.historyService.log({
+        textLinkId: id,
+        action: 'status_changed',
+        performedBy: req.user.sub,
+        changes: { status: { old: 'active', new: 'disabled' } },
+      });
       await this.discordService.sendStatusChangeNotification(updated!, 'active', 'disabled');
       return updated;
     } else if (link.status === 'disabled') {
@@ -245,6 +309,12 @@ export class TextLinksController {
           websiteIds: deployments.map((d) => d.websiteId.toString()),
         });
       }
+      await this.historyService.log({
+        textLinkId: id,
+        action: 'status_changed',
+        performedBy: req.user.sub,
+        changes: { status: { old: 'disabled', new: 'active' } },
+      });
       await this.discordService.sendStatusChangeNotification(updated!, 'disabled', 'active');
       return updated;
     } else if (link.status === 'pending') {
@@ -266,6 +336,12 @@ export class TextLinksController {
           websiteIds: newIds,
         });
       }
+      await this.historyService.log({
+        textLinkId: id,
+        action: 'status_changed',
+        performedBy: req.user.sub,
+        changes: { status: { old: 'pending', new: 'active' } },
+      });
       await this.discordService.sendStatusChangeNotification(updated!, 'pending', 'active');
       return updated;
     }

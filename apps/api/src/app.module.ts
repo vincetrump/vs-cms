@@ -17,6 +17,7 @@ import { DiscordModule } from './modules/discord/discord.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ExternalApiModule } from './modules/external-api/external-api.module';
 import { JobsModule } from './modules/jobs/jobs.module';
+import { TextLinkHistoryModule } from './modules/text-link-history/text-link-history.module';
 import { DashboardController } from './modules/dashboard/dashboard.controller';
 import { TotpSetupGuard } from './common/guards/totp-setup.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
@@ -42,6 +43,7 @@ import { PasswordChangeGuard } from './common/guards/password-change.guard';
     ApiKeysModule,
     ExternalApiModule,
     JobsModule,
+    TextLinkHistoryModule,
   ],
   controllers: [DashboardController],
   providers: [
