@@ -187,6 +187,7 @@ export class DiscordService {
         { name: 'Title', value: link.title, inline: true },
         { name: 'Anchor Text', value: link.anchorText, inline: true },
         { name: 'Target URL', value: link.targetUrl },
+        { name: 'Websites', value: `${link.requestedWebsiteIds?.length || 0}`, inline: true },
         { name: 'Pages/Website', value: `${link.pageCount}${link.includeHomepage ? ' + homepage' : ''}`, inline: true },
         { name: 'Rel', value: link.rel || 'dofollow', inline: true },
         { name: 'Status', value: link.status, inline: true },

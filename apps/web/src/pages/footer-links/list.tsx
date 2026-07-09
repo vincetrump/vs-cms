@@ -149,6 +149,14 @@ export const FooterLinkList = () => {
         />
         {screens.sm && (
           <Table.Column
+            dataIndex="requestedWebsiteIds"
+            title="Sites"
+            width={60}
+            render={(ids: string[]) => ids?.length || 0}
+          />
+        )}
+        {screens.sm && (
+          <Table.Column
             dataIndex="pageCount"
             title="Pages"
             width={70}
