@@ -209,6 +209,11 @@ export class FooterLinksController {
       throw new ForbiddenException();
     }
 
+    const hasActiveJobs = await this.jobsService.hasActiveJobsFor('footerLinkId', id);
+    if (hasActiveJobs) {
+      throw new BadRequestException('Cannot delete: there are pending/running jobs for this footer link');
+    }
+
     await this.historyService.log({
       footerLinkId: id,
       action: 'deleted',

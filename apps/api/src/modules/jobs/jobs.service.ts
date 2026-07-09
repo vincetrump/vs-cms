@@ -80,6 +80,14 @@ export class JobsService {
     return count > 0;
   }
 
+  async hasActiveJobsFor(paramKey: string, entityId: string): Promise<boolean> {
+    const count = await this.jobModel.countDocuments({
+      status: { $in: ['pending', 'running'] },
+      [`params.${paramKey}`]: entityId,
+    });
+    return count > 0;
+  }
+
   async resetAllRunning(): Promise<number> {
     const result = await this.jobModel.updateMany(
       { status: 'running' },

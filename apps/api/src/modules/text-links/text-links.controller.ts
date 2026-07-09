@@ -217,6 +217,11 @@ export class TextLinksController {
       throw new ForbiddenException();
     }
 
+    const hasActiveJobs = await this.jobsService.hasActiveJobsFor('textLinkId', id);
+    if (hasActiveJobs) {
+      throw new BadRequestException('Cannot delete: there are pending/running jobs for this text link');
+    }
+
     await this.historyService.log({
       textLinkId: id,
       action: 'deleted',
