@@ -17,7 +17,7 @@ export class SyncService {
     private linkDeploymentsService: LinkDeploymentsService,
     private configService: ConfigService,
   ) {
-    this.defaultServer = this.configService.get<string>('ssh.defaultServer', '68.183.188.19');
+    this.defaultServer = this.configService.get<string>('ssh.defaultServer', '187.77.140.45');
   }
 
   async syncWebsites() {

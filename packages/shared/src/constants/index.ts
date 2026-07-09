@@ -23,5 +23,13 @@ export enum TextLinkSource {
   API = 'api',
 }
 
+export enum FooterLinkStatus {
+  PENDING = 'pending',
+  ACTIVE = 'active',
+  DISABLED = 'disabled',
+  EXPIRED = 'expired',
+}
+
 export const VS_CMS_LINK_SECTION_ID = 'vs-cms-links';
 export const VS_CMS_MARKER_PREFIX = 'vs-cms:';
+export const VS_CMS_FOOTER_MARKER_PREFIX = 'vs-cms-footer:';

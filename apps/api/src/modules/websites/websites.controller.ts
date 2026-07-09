@@ -1,7 +1,9 @@
-import { Controller, Get, Param, Post, Req, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Post, Req, Query, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { WebsitesService } from './websites.service';
 import { JobsService } from '../jobs/jobs.service';
 import { LinkDeploymentsService } from '../link-deployments/link-deployments.service';
+import { FooterLinkDeploymentsService } from '../footer-link-deployments/footer-link-deployments.service';
+import { WebsitePagesService } from '../website-pages/website-pages.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -15,6 +17,8 @@ export class WebsitesController {
     private websitesService: WebsitesService,
     private jobsService: JobsService,
     private linkDeploymentsService: LinkDeploymentsService,
+    private footerLinkDeploymentsService: FooterLinkDeploymentsService,
+    private websitePagesService: WebsitePagesService,
   ) {}
 
   @Get()
@@ -36,6 +40,30 @@ export class WebsitesController {
     const deployments = await this.linkDeploymentsService.findByWebsite(id);
     const obj = website.toObject();
     return { ...obj, deployments };
+  }
+
+  @Get(':id/pages')
+  @Roles('admin')
+  async getPages(@Param('id') id: string) {
+    const website = await this.websitesService.findById(id);
+    if (!website) throw new NotFoundException('Website not found');
+    return this.websitePagesService.findByWebsite(id);
+  }
+
+  @Get(':id/footer-deployments')
+  @Roles('admin')
+  async getFooterDeployments(@Param('id') id: string) {
+    return this.footerLinkDeploymentsService.findByWebsite(id);
+  }
+
+  @Post(':id/scan-pages')
+  @Roles('admin')
+  async scanPages(@Param('id') id: string) {
+    const website = await this.websitesService.findById(id);
+    if (!website) throw new NotFoundException('Website not found');
+    if (!website.documentRoot) throw new NotFoundException('Website has no document root');
+    const job = await this.jobsService.create('scan_website_pages', { websiteIds: [id] });
+    return { jobId: job._id, message: 'Scan job queued' };
   }
 
   @Post('sync')

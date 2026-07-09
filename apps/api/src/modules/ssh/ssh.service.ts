@@ -240,6 +240,44 @@ export class SshService implements OnModuleDestroy {
     return null;
   }
 
+  async scanSubPages(
+    documentRoot: string,
+    serverIp?: string,
+  ): Promise<Array<{ pagePath: string; filePath: string; hasFooter: boolean }>> {
+    const safe = this.validatePath(documentRoot);
+
+    const findResult = await this.executeCommand(
+      `find '${safe.replace(/'/g, "'\\''")}' -mindepth 2 -maxdepth 3 -name "index.html" -not -path "*/\\.*" 2>/dev/null || echo ""`,
+      serverIp,
+    );
+
+    const files = findResult.trim().split('\n').filter(Boolean);
+    if (!files.length) return [];
+
+    let footerFiles = new Set<string>();
+    try {
+      const grepResult = await this.executeCommand(
+        `grep -rl "<footer" ${files.map(f => `'${f.replace(/'/g, "'\\''")}'`).join(' ')} 2>/dev/null || echo ""`,
+        serverIp,
+      );
+      footerFiles = new Set(grepResult.trim().split('\n').filter(Boolean));
+    } catch {
+      this.logger.warn('Footer grep failed, marking all as no-footer');
+    }
+
+    return files.map((filePath) => {
+      const relative = filePath.replace(safe, '').replace(/^\//, '');
+      const parts = relative.split('/');
+      parts.pop();
+      const pagePath = '/' + parts.join('/') + '/';
+      return {
+        pagePath,
+        filePath,
+        hasFooter: footerFiles.has(filePath),
+      };
+    });
+  }
+
   disconnectAll() {
     for (const [, conn] of this.connections) {
       conn.end();

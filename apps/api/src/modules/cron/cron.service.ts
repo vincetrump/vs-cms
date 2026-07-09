@@ -32,6 +32,18 @@ export class CronService {
     await this.jobsService.create('sync_websites');
   }
 
+  @Cron('0 2 * * *')
+  async checkExpiredFooterLinks() {
+    this.logger.log('Creating check_expired_footer_links job...');
+    await this.jobsService.create('check_expired_footer_links');
+  }
+
+  @Cron('0 5 * * *')
+  async scanWebsitePages() {
+    this.logger.log('Creating scan_website_pages job...');
+    await this.jobsService.create('scan_website_pages');
+  }
+
   @Cron('0 7,19 * * *')
   async remindPendingLinks() {
     this.logger.log('Checking for pending links...');

@@ -1,6 +1,6 @@
 import { useCustom } from "@refinedev/core";
 import { Card, Col, Row, Statistic, Typography } from "antd";
-import { GlobalOutlined, LinkOutlined, ClockCircleOutlined, StopOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, ClockCircleOutlined, StopOutlined, ColumnHeightOutlined } from "@ant-design/icons";
 import { API_URL } from "../../providers/dataProvider";
 
 const { Title } = Typography;
@@ -77,6 +77,28 @@ export const DashboardPage = () => {
               title="Expiring in 7 days"
               value={stats?.expiringIn7Days ?? 0}
               prefix={<ClockCircleOutlined style={{ color: "#faad14" }} />}
+              loading={isLoading}
+              valueStyle={{ color: "#faad14" }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Active Footer Links"
+              value={stats?.activeFooterLinks ?? 0}
+              prefix={<ColumnHeightOutlined />}
+              loading={isLoading}
+              valueStyle={{ color: "#1890ff" }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Pending Footer Links"
+              value={stats?.pendingFooterLinks ?? 0}
+              prefix={<ColumnHeightOutlined style={{ color: "#faad14" }} />}
               loading={isLoading}
               valueStyle={{ color: "#faad14" }}
             />

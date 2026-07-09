@@ -4,6 +4,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { WebsitesService } from '../websites/websites.service';
 import { TextLinksService } from '../text-links/text-links.service';
+import { FooterLinksService } from '../footer-links/footer-links.service';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,6 +13,7 @@ export class DashboardController {
   constructor(
     private websitesService: WebsitesService,
     private textLinksService: TextLinksService,
+    private footerLinksService: FooterLinksService,
   ) {}
 
   @Get('stats')
@@ -24,6 +26,8 @@ export class DashboardController {
       pendingLinks,
       disabledLinks,
       expiringIn7Days,
+      activeFooterLinks,
+      pendingFooterLinks,
     ] = await Promise.all([
       this.websitesService.count(),
       this.websitesService.countByStatus('active'),
@@ -32,6 +36,8 @@ export class DashboardController {
       this.textLinksService.countByStatus('pending'),
       this.textLinksService.countByStatus('disabled'),
       this.textLinksService.countExpiringWithinDays(7),
+      this.footerLinksService.countByStatus('active'),
+      this.footerLinksService.countByStatus('pending'),
     ]);
 
     return {
@@ -42,6 +48,8 @@ export class DashboardController {
       pendingLinks,
       disabledLinks,
       expiringIn7Days,
+      activeFooterLinks,
+      pendingFooterLinks,
     };
   }
 }

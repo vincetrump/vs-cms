@@ -9,6 +9,56 @@ services:
     environment:
       MONGO_INITDB_DATABASE: vs-cms
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3001"
+    depends_on:
+      - mongo
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/vs-cms
+      JWT_SECRET: vs-cms-dev-jwt-secret-change-in-production-64chars-long-key
+      JWT_EXPIRATION: 24h
+      TOTP_ENCRYPTION_KEY: vs-cms-dev-totp-encryption-key-32
+      SSH_PRIVATE_KEY_PATH: /root/.ssh/id_rsa
+      SSH_DEFAULT_SERVER: 187.77.140.45
+      SSH_DEFAULT_USER: root
+      CLOUDFLARE_API_TOKEN: ""
+      DISCORD_WEBHOOK_URL: ""
+      API_PORT: "3001"
+      ADMIN_URL: http://localhost:3010
+    volumes:
+      - ~/.ssh/id_ed_vince_trump:/root/.ssh/id_rsa:ro
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "3010:80"
+    depends_on:
+      - api
+
+  seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      - mongo
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/vs-cms
+      JWT_SECRET: unused
+      TOTP_ENCRYPTION_KEY: vs-cms-dev-totp-encryption-key-32
+    command: ["node", "dist/seed.js"]
+    profiles:
+      - seed
+
   mongo-express:
     image: mongo-express:latest
     restart: unless-stopped
@@ -19,6 +69,8 @@ services:
     environment:
       ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/
       ME_CONFIG_BASICAUTH: "false"
+    profiles:
+      - tools
 
 volumes:
   mongo-data:

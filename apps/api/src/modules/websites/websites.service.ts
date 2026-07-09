@@ -69,6 +69,18 @@ export class WebsitesService {
     );
   }
 
+  async updatePageScanResults(id: string, data: { totalSubPages: number; lastPageScanAt: Date }) {
+    return this.websiteModel.findByIdAndUpdate(id, { $set: data }, { new: true });
+  }
+
+  async updateDeployedFooterLinkCount(id: string, count: number) {
+    return this.websiteModel.findByIdAndUpdate(
+      id,
+      { $set: { deployedFooterLinkCount: count } },
+      { new: true },
+    );
+  }
+
   async count() {
     return this.websiteModel.countDocuments().exec();
   }

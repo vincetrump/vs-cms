@@ -18,6 +18,10 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ExternalApiModule } from './modules/external-api/external-api.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { TextLinkHistoryModule } from './modules/text-link-history/text-link-history.module';
+import { FooterLinksModule } from './modules/footer-links/footer-links.module';
+import { FooterLinkDeploymentsModule } from './modules/footer-link-deployments/footer-link-deployments.module';
+import { FooterLinkHistoryModule } from './modules/footer-link-history/footer-link-history.module';
+import { WebsitePagesModule } from './modules/website-pages/website-pages.module';
 import { DashboardController } from './modules/dashboard/dashboard.controller';
 import { TotpSetupGuard } from './common/guards/totp-setup.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
@@ -44,6 +48,10 @@ import { PasswordChangeGuard } from './common/guards/password-change.guard';
     ExternalApiModule,
     JobsModule,
     TextLinkHistoryModule,
+    FooterLinksModule,
+    FooterLinkDeploymentsModule,
+    FooterLinkHistoryModule,
+    WebsitePagesModule,
   ],
   controllers: [DashboardController],
   providers: [

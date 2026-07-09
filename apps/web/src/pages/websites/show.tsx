@@ -1,7 +1,9 @@
+import { useState, useEffect, useCallback } from "react";
 import { useShow, useNavigation } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
 import { Descriptions, Tag, Grid, Space, Table, Typography, Button, Tooltip, message } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, EyeOutlined, CopyOutlined, CloudOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, EyeOutlined, CopyOutlined, CloudOutlined, ThunderboltOutlined, ScanOutlined, ReloadOutlined } from "@ant-design/icons";
+import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { useBreakpoint } = Grid;
 
@@ -39,6 +41,49 @@ export const WebsiteShow = () => {
   const record = query?.data?.data as any;
   const screens = useBreakpoint();
   const { show } = useNavigation();
+  const [pages, setPages] = useState<any[]>([]);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [footerDeployments, setFooterDeployments] = useState<any[]>([]);
+  const [footerLoading, setFooterLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  const fetchPages = useCallback(async (id: string) => {
+    setPagesLoading(true);
+    try {
+      const res = await axiosInstance.get(`${API_URL}/websites/${id}/pages`);
+      setPages(res.data);
+    } catch { /* ignore */ }
+    finally { setPagesLoading(false); }
+  }, []);
+
+  const fetchFooterDeployments = useCallback(async (id: string) => {
+    setFooterLoading(true);
+    try {
+      const res = await axiosInstance.get(`${API_URL}/websites/${id}/footer-deployments`);
+      setFooterDeployments(res.data);
+    } catch { /* ignore */ }
+    finally { setFooterLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (record?._id) {
+      fetchPages(record._id);
+      fetchFooterDeployments(record._id);
+    }
+  }, [record?._id, fetchPages, fetchFooterDeployments]);
+
+  const handleScanPages = async () => {
+    if (!record?._id) return;
+    setScanning(true);
+    try {
+      await axiosInstance.post(`${API_URL}/websites/${record._id}/scan-pages`);
+      message.success("Scan job queued");
+    } catch {
+      message.error("Failed to queue scan");
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const dns = dnsStatusMap[record?.dnsStatus] || { color: "default", icon: <QuestionCircleOutlined />, label: "Chưa kiểm tra" };
 
@@ -157,6 +202,122 @@ export const WebsiteShow = () => {
         </Table>
       ) : (
         <Typography.Text type="secondary">No text links deployed</Typography.Text>
+      )}
+
+      <Typography.Title level={5} style={{ marginTop: 24 }}>
+        <Space>
+          Footer Link Deployments ({footerDeployments.length})
+        </Space>
+      </Typography.Title>
+      {footerDeployments.length > 0 ? (
+        <Table
+          dataSource={footerDeployments}
+          rowKey="_id"
+          size="small"
+          loading={footerLoading}
+          pagination={footerDeployments.length > 10 ? { pageSize: 10 } : false}
+        >
+          <Table.Column
+            title="Footer Link"
+            dataIndex="footerLinkId"
+            render={(link: any) => link?.title || "-"}
+          />
+          <Table.Column
+            title="Page"
+            dataIndex="pagePath"
+            render={(v: string) => v || "-"}
+          />
+          <Table.Column
+            title="Status"
+            dataIndex="status"
+            width={90}
+            render={(s: string) => (
+              <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>
+                {s === "deployed" ? "Đã deploy" : s === "failed" ? "Lỗi" : s === "removed" ? "Đã gỡ" : s}
+              </Tag>
+            )}
+          />
+          {screens.md && (
+            <Table.Column
+              title="Deployed"
+              dataIndex="deployedAt"
+              render={(v) => (v ? new Date(v).toLocaleString() : "-")}
+            />
+          )}
+          <Table.Column
+            title=""
+            width={50}
+            dataIndex="footerLinkId"
+            key="action"
+            render={(link: any) =>
+              link?._id ? (
+                <Button
+                  size="small"
+                  icon={<EyeOutlined />}
+                  onClick={() => show("footer-links", link._id)}
+                />
+              ) : null
+            }
+          />
+        </Table>
+      ) : (
+        <Typography.Text type="secondary">No footer links deployed</Typography.Text>
+      )}
+
+      <Typography.Title level={5} style={{ marginTop: 24 }}>
+        <Space>
+          Sub-Pages ({pages.length})
+          <Button
+            size="small"
+            icon={<ScanOutlined />}
+            loading={scanning}
+            onClick={handleScanPages}
+          >
+            Scan
+          </Button>
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            loading={pagesLoading}
+            onClick={() => record?._id && fetchPages(record._id)}
+          >
+            Refresh
+          </Button>
+        </Space>
+      </Typography.Title>
+      {pages.length > 0 ? (
+        <Table
+          dataSource={pages}
+          rowKey="_id"
+          size="small"
+          loading={pagesLoading}
+          pagination={pages.length > 20 ? { pageSize: 20 } : false}
+        >
+          <Table.Column title="Page Path" dataIndex="pagePath" />
+          <Table.Column
+            title="Has Footer"
+            dataIndex="hasFooter"
+            width={90}
+            render={(v: boolean) => <Tag color={v ? "green" : "default"}>{v ? "Yes" : "No"}</Tag>}
+          />
+          <Table.Column
+            title="Footer Links"
+            dataIndex="footerLinkCount"
+            width={100}
+            render={(v: number) => v || 0}
+          />
+          {screens.md && (
+            <Table.Column
+              title="Last Scanned"
+              dataIndex="lastScannedAt"
+              render={(v) => (v ? new Date(v).toLocaleString() : "-")}
+            />
+          )}
+        </Table>
+      ) : (
+        <Typography.Text type="secondary">
+          {record?.lastPageScanAt ? "No sub-pages found" : "Pages not scanned yet. Click Scan to discover sub-pages."}
+        </Typography.Text>
       )}
 
       {record?.externalLinks?.length > 0 && (

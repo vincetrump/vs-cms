@@ -3,7 +3,7 @@ import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinede
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined, TeamOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined, TeamOutlined, ColumnHeightOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -19,6 +19,10 @@ import { TextLinkList } from "./pages/text-links/list";
 import { TextLinkCreate } from "./pages/text-links/create";
 import { TextLinkEdit } from "./pages/text-links/edit";
 import { TextLinkShow } from "./pages/text-links/show";
+import { FooterLinkList } from "./pages/footer-links/list";
+import { FooterLinkCreate } from "./pages/footer-links/create";
+import { FooterLinkEdit } from "./pages/footer-links/edit";
+import { FooterLinkShow } from "./pages/footer-links/show";
 import { ApiKeyList } from "./pages/api-keys/list";
 import { ApiKeyCreate } from "./pages/api-keys/create";
 import { ApiKeyShow } from "./pages/api-keys/show";
@@ -72,6 +76,7 @@ const accessControlProvider: AccessControlProvider = {
 
     const saleAllowed: Record<string, string[]> = {
       "text-links": ["list", "create", "edit", "show", "delete"],
+      "footer-links": ["list", "create", "edit", "show", "delete"],
       dashboard: ["list"],
       settings: ["list"],
       guides: ["list"],
@@ -112,6 +117,14 @@ function App() {
                 edit: "/text-links/edit/:id",
                 show: "/text-links/show/:id",
                 meta: { label: "Text Links", icon: <LinkOutlined /> },
+              },
+              {
+                name: "footer-links",
+                list: "/footer-links",
+                create: "/footer-links/create",
+                edit: "/footer-links/edit/:id",
+                show: "/footer-links/show/:id",
+                meta: { label: "Footer Links", icon: <ColumnHeightOutlined /> },
               },
               {
                 name: "api-keys",
@@ -180,6 +193,12 @@ function App() {
                   <Route path="create" element={<TextLinkCreate />} />
                   <Route path="edit/:id" element={<TextLinkEdit />} />
                   <Route path="show/:id" element={<TextLinkShow />} />
+                </Route>
+                <Route path="/footer-links">
+                  <Route index element={<FooterLinkList />} />
+                  <Route path="create" element={<FooterLinkCreate />} />
+                  <Route path="edit/:id" element={<FooterLinkEdit />} />
+                  <Route path="show/:id" element={<FooterLinkShow />} />
                 </Route>
                 <Route path="/api-keys">
                   <Route index element={<ApiKeyList />} />

@@ -46,6 +46,15 @@ export class Website {
 
   @Prop({ type: Date, default: null })
   lastSyncedAt: Date | null;
+
+  @Prop({ type: Number, default: 0 })
+  deployedFooterLinkCount: number;
+
+  @Prop({ type: Number, default: 0 })
+  totalSubPages: number;
+
+  @Prop({ type: Date, default: null })
+  lastPageScanAt: Date | null;
 }
 
 export const WebsiteSchema = SchemaFactory.createForClass(Website);
