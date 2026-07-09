@@ -104,51 +104,40 @@ export class FooterLinkDeploymentsService {
     if (!link) throw new Error('Footer link not found');
 
     const results: Array<{ filePath: string; success: boolean; error?: string }> = [];
-    const concurrency = 5;
 
-    for (let i = 0; i < pages.length; i += concurrency) {
-      const batch = pages.slice(i, i + concurrency);
-      const batchResults = await Promise.allSettled(
-        batch.map(async (page) => {
-          try {
-            await this.sshService.backupFile(page.filePath, serverIp);
-            const html = await this.sshService.readFile(page.filePath, serverIp);
-            const linkHtml = this.buildFooterLinkHtml(footerLinkId, link.anchorText, link.targetUrl, link.title, link.rel);
-            const newHtml = this.insertFooterLink(html, linkHtml);
-            await this.sshService.writeFile(page.filePath, newHtml, serverIp);
+    for (const page of pages) {
+      try {
+        await this.sshService.backupFile(page.filePath, serverIp);
+        const html = await this.sshService.readFile(page.filePath, serverIp);
+        const linkHtml = this.buildFooterLinkHtml(footerLinkId, link.anchorText, link.targetUrl, link.title, link.rel);
+        const newHtml = this.insertFooterLink(html, linkHtml);
+        await this.sshService.writeFile(page.filePath, newHtml, serverIp);
 
-            await this.deploymentModel.findOneAndUpdate(
-              { footerLinkId, websiteId, filePath: page.filePath },
-              {
-                pagePath: page.pagePath,
-                status: 'deployed',
-                deployedAt: new Date(),
-                removedAt: null,
-                errorMessage: null,
-              },
-              { upsert: true, new: true },
-            );
+        await this.deploymentModel.findOneAndUpdate(
+          { footerLinkId, websiteId, filePath: page.filePath },
+          {
+            pagePath: page.pagePath,
+            status: 'deployed',
+            deployedAt: new Date(),
+            removedAt: null,
+            errorMessage: null,
+          },
+          { upsert: true, new: true },
+        );
 
-            await this.websitePagesService.incrementFooterLinkCount(websiteId, page.filePath);
-            return { filePath: page.filePath, success: true };
-          } catch (err: any) {
-            await this.deploymentModel.findOneAndUpdate(
-              { footerLinkId, websiteId, filePath: page.filePath },
-              {
-                pagePath: page.pagePath,
-                status: 'failed',
-                errorMessage: err.message,
-              },
-              { upsert: true, new: true },
-            );
-            return { filePath: page.filePath, success: false, error: err.message };
-          }
-        }),
-      );
-
-      for (const result of batchResults) {
-        if (result.status === 'fulfilled') results.push(result.value);
-        else results.push({ filePath: 'unknown', success: false, error: result.reason?.message });
+        await this.websitePagesService.incrementFooterLinkCount(websiteId, page.filePath);
+        results.push({ filePath: page.filePath, success: true });
+      } catch (err: any) {
+        await this.deploymentModel.findOneAndUpdate(
+          { footerLinkId, websiteId, filePath: page.filePath },
+          {
+            pagePath: page.pagePath,
+            status: 'failed',
+            errorMessage: err.message,
+          },
+          { upsert: true, new: true },
+        );
+        results.push({ filePath: page.filePath, success: false, error: err.message });
       }
     }
 

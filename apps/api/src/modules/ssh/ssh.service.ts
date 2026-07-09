@@ -119,9 +119,10 @@ export class SshService implements OnModuleDestroy {
           });
         });
       } catch (err: any) {
-        if (attempt === 0 && err?.message?.includes('Channel open failure')) {
-          this.logger.warn(`SSH channel failure, reconnecting to ${serverIp}`);
+        if (attempt === 0 && (err?.message?.includes('Channel open failure') || err?.message?.includes('Unable to exec'))) {
+          this.logger.warn(`SSH exec channel failure, reconnecting to ${serverIp}`);
           this.reconnect(serverIp);
+          await new Promise(r => setTimeout(r, 500));
           continue;
         }
         throw err;
@@ -150,9 +151,10 @@ export class SshService implements OnModuleDestroy {
           });
         });
       } catch (err: any) {
-        if (attempt === 0 && err?.message?.includes('Channel open failure')) {
+        if (attempt === 0 && (err?.message?.includes('Channel open failure') || err?.message?.includes('Unable to start subsystem'))) {
           this.logger.warn(`SSH SFTP channel failure, reconnecting to ${serverIp}`);
           this.reconnect(serverIp);
+          await new Promise(r => setTimeout(r, 500));
           continue;
         }
         throw err;
