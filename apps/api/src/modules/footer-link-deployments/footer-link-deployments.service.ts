@@ -108,7 +108,8 @@ export class FooterLinkDeploymentsService {
     for (const page of pages) {
       try {
         await this.sshService.backupFile(page.filePath, serverIp);
-        const html = await this.sshService.readFile(page.filePath, serverIp);
+        let html = await this.sshService.readFile(page.filePath, serverIp);
+        html = this.removeFooterLink(html, footerLinkId);
         const linkHtml = this.buildFooterLinkHtml(footerLinkId, link.anchorText, link.targetUrl, link.title, link.rel);
         const newHtml = this.insertFooterLink(html, linkHtml);
         await this.sshService.writeFile(page.filePath, newHtml, serverIp);
@@ -281,7 +282,7 @@ export class FooterLinkDeploymentsService {
     const escapedId = linkId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const linkRegex = new RegExp(
       `\\n?<!-- vs-cms-footer:${escapedId} -->.*?<!-- /vs-cms-footer:${escapedId} -->`,
-      's',
+      'gs',
     );
     return html.replace(linkRegex, '');
   }
