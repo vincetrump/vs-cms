@@ -31,8 +31,11 @@ export class WorkerService implements OnModuleInit {
     private websitesService: WebsitesService,
   ) {}
 
-  onModuleInit() {
-    this.jobsService.resetStaleRunning();
+  async onModuleInit() {
+    const reset = await this.jobsService.resetAllRunning();
+    if (reset > 0) {
+      this.logger.warn(`Reset ${reset} interrupted job(s) back to pending`);
+    }
     this.startPolling();
   }
 

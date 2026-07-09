@@ -80,11 +80,11 @@ export class JobsService {
     return count > 0;
   }
 
-  async resetStaleRunning(): Promise<void> {
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-    await this.jobModel.updateMany(
-      { status: 'running', startedAt: { $lt: fiveMinAgo } },
-      { status: 'failed', error: 'Job timed out', completedAt: new Date() },
+  async resetAllRunning(): Promise<number> {
+    const result = await this.jobModel.updateMany(
+      { status: 'running' },
+      { status: 'pending', error: null, startedAt: null },
     );
+    return result.modifiedCount;
   }
 }
