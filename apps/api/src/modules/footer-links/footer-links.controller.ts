@@ -160,25 +160,26 @@ export class FooterLinksController {
 
     const updated = await this.footerLinksService.update(id, updateData);
 
-    if (req.user.role === 'admin' && hasContentChanges) {
-      await this.jobsService.create('redeploy_footer_link', { footerLinkId: id });
-    }
-
     if (req.user.role === 'admin' && dto.websiteIds) {
       const currentDeployments = await this.footerLinkDeploymentsService.findDeployed(id);
       const currentWebsiteIds = [...new Set(currentDeployments.map(d => d.websiteId.toString()))];
       const targetIds = new Set(dto.websiteIds);
       const currentSet = new Set(currentWebsiteIds);
 
-      const toAdd = dto.websiteIds.filter(wid => !currentSet.has(wid));
       const toRemove = currentWebsiteIds.filter(wid => !targetIds.has(wid));
+      const toAdd = dto.websiteIds.filter(wid => !currentSet.has(wid));
 
-      if (toAdd.length) {
-        await this.jobsService.create('deploy_footer_links', { footerLinkId: id, websiteIds: toAdd });
-      }
       if (toRemove.length) {
         await this.jobsService.create('undeploy_footer_links', { footerLinkId: id, websiteIds: toRemove });
       }
+      if (hasContentChanges) {
+        await this.jobsService.create('redeploy_footer_link', { footerLinkId: id });
+      }
+      if (toAdd.length) {
+        await this.jobsService.create('deploy_footer_links', { footerLinkId: id, websiteIds: toAdd });
+      }
+    } else if (req.user.role === 'admin' && hasContentChanges) {
+      await this.jobsService.create('redeploy_footer_link', { footerLinkId: id });
     }
 
     if (Object.keys(changes).length > 0) {
