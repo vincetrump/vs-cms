@@ -24,6 +24,7 @@ export default () => ({
   },
   discord: {
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
+    footerWebhookUrl: process.env.DISCORD_FOOTER_WEBHOOK_URL || '',
   },
   app: {
     port: parseInt(process.env.API_PORT || '3001', 10),

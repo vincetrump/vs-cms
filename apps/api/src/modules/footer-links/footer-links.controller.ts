@@ -102,6 +102,8 @@ export class FooterLinksController {
       metadata: { status: link.status, source: link.source, pageCount: link.pageCount },
     });
 
+    await this.discordService.sendFooterLinkCreatedNotification(link);
+
     return link;
   }
 
@@ -186,6 +188,12 @@ export class FooterLinksController {
         performedBy: req.user.sub,
         changes,
       });
+
+      if (isSale && existing.status === 'active' && hasContentChanges) {
+        await this.discordService.sendFooterLinkPendingReviewNotification(updated, changes);
+      } else {
+        await this.discordService.sendFooterLinkUpdatedNotification(updated, changes);
+      }
     }
 
     return updated;
@@ -206,6 +214,8 @@ export class FooterLinksController {
       performedBy: req.user.sub,
       metadata: { title: link.title, anchorText: link.anchorText },
     });
+
+    await this.discordService.sendFooterLinkDeleteNotification(link);
 
     if (req.user.role === 'admin') {
       await this.jobsService.create('undeploy_footer_links', { footerLinkId: id });
@@ -280,6 +290,7 @@ export class FooterLinksController {
         performedBy: req.user.sub,
         changes: { status: { old: 'active', new: 'disabled' } },
       });
+      await this.discordService.sendFooterLinkStatusChangeNotification(link, 'active', 'disabled');
       return updated;
     } else if (link.status === 'disabled') {
       const deployments = await this.footerLinkDeploymentsService.findPreviouslyDeployed(id);
@@ -302,6 +313,7 @@ export class FooterLinksController {
         performedBy: req.user.sub,
         changes: { status: { old: 'disabled', new: 'active' } },
       });
+      await this.discordService.sendFooterLinkStatusChangeNotification(link, 'disabled', 'active');
       return updated;
     } else if (link.status === 'pending') {
       const updated = await this.footerLinksService.update(id, { status: 'active' });
@@ -331,6 +343,7 @@ export class FooterLinksController {
         performedBy: req.user.sub,
         changes: { status: { old: 'pending', new: 'active' } },
       });
+      await this.discordService.sendFooterLinkStatusChangeNotification(link, 'pending', 'active');
       return updated;
     }
 

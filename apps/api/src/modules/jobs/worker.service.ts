@@ -296,11 +296,14 @@ export class WorkerService implements OnModuleInit {
       metadata: { jobId, success, failed, totalPages, total: results.length, websiteIds },
     });
 
+    await this.discordService.sendFooterLinkDeployNotification(link, results);
+
     return { success, failed, totalPages, total: results.length };
   }
 
   private async handleUndeployFooterLinks(jobId: string, params: Record<string, any>) {
     const { footerLinkId, websiteIds } = params;
+    const link = await this.footerLinksService.findById(footerLinkId);
 
     if (websiteIds?.length) {
       await this.jobsService.updateProgress(jobId, 0, websiteIds.length);
@@ -318,6 +321,10 @@ export class WorkerService implements OnModuleInit {
         metadata: { jobId, total: results.length },
       });
 
+      if (link) {
+        await this.discordService.sendFooterLinkUndeployNotification(link, results);
+      }
+
       return { removed: results.reduce((sum, r) => sum + r.pagesRemoved, 0), total: results.length };
     } else {
       await this.jobsService.addLog(jobId, 'info', 'Undeploying footer link from all websites...');
@@ -329,6 +336,10 @@ export class WorkerService implements OnModuleInit {
         action: 'undeploy_completed',
         metadata: { jobId, removed: results.length },
       });
+
+      if (link) {
+        await this.discordService.sendFooterLinkUndeployNotification(link, results);
+      }
 
       return { removed: results.length };
     }
@@ -419,6 +430,8 @@ export class WorkerService implements OnModuleInit {
 
       await this.jobsService.updateProgress(jobId, i + 1, expired.length);
     }
+
+    await this.discordService.sendFooterLinkExpirationNotification(expired);
 
     return { expired: expired.length };
   }
