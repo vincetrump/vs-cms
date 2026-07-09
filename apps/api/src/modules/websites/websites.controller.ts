@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req, Query, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Param, Post, Patch, Req, Query, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { WebsitesService } from './websites.service';
 import { JobsService } from '../jobs/jobs.service';
 import { LinkDeploymentsService } from '../link-deployments/link-deployments.service';
@@ -64,6 +64,17 @@ export class WebsitesController {
     if (!website.documentRoot) throw new NotFoundException('Website has no document root');
     const job = await this.jobsService.create('scan_website_pages', { websiteIds: [id] });
     return { jobId: job._id, message: 'Scan job queued' };
+  }
+
+  @Patch(':id/exclude-from-deployment')
+  @Roles('admin')
+  async toggleExcludeFromDeployment(@Param('id') id: string) {
+    const website = await this.websitesService.findById(id);
+    if (!website) throw new NotFoundException('Website not found');
+    const updated = await this.websitesService.update(id, {
+      excludeFromDeployment: !website.excludeFromDeployment,
+    });
+    return updated;
   }
 
   @Post('sync')

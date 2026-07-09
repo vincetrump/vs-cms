@@ -24,7 +24,7 @@ export class WebsitesService {
   }
 
   async findAllActive() {
-    return this.websiteModel.find({ status: 'active' }).exec();
+    return this.websiteModel.find({ status: 'active', excludeFromDeployment: { $ne: true } }).exec();
   }
 
   async findById(id: string) {
@@ -41,6 +41,10 @@ export class WebsitesService {
       { $set: { ...data, lastSyncedAt: new Date() } },
       { upsert: true, new: true },
     );
+  }
+
+  async update(id: string, data: Partial<Website>) {
+    return this.websiteModel.findByIdAndUpdate(id, { $set: data }, { new: true });
   }
 
   async updateStatus(id: string, status: string) {

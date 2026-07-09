@@ -10,6 +10,7 @@ export interface IWebsite {
   totalSubPages: number;
   lastPageScanAt: Date | null;
   lastSyncedAt: Date | null;
+  excludeFromDeployment: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

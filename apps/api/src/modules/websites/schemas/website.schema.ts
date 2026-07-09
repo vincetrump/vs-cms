@@ -55,6 +55,9 @@ export class Website {
 
   @Prop({ type: Date, default: null })
   lastPageScanAt: Date | null;
+
+  @Prop({ type: Boolean, default: false })
+  excludeFromDeployment: boolean;
 }
 
 export const WebsiteSchema = SchemaFactory.createForClass(Website);

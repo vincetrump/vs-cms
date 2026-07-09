@@ -12,6 +12,7 @@ import {
   ClearOutlined,
   CloudOutlined,
   ThunderboltOutlined,
+  StopOutlined,
 } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 import { useJobPolling } from "../../hooks/useJobPolling";
@@ -92,6 +93,19 @@ export const WebsiteList = () => {
     setSearchResult(null);
   };
 
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const handleToggleExclude = async (id: string) => {
+    setTogglingId(id);
+    try {
+      await axiosInstance.patch(`${API_URL}/websites/${id}/exclude-from-deployment`);
+      tableQuery.refetch();
+      if (searchResult) handleSearch();
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const isFiltered = searchResult !== null;
 
   const statusColors: Record<string, string> = {
@@ -168,6 +182,23 @@ export const WebsiteList = () => {
               </Tooltip>
             );
           }}
+        />
+        <Table.Column
+          dataIndex="excludeFromDeployment"
+          title="Deploy"
+          width={80}
+          render={(excluded: boolean, record: any) => (
+            <Tooltip title={excluded ? "Excluded from deployment — click to include" : "Available for deployment — click to exclude"}>
+              <Tag
+                color={excluded ? "red" : "green"}
+                icon={excluded ? <StopOutlined /> : <CheckCircleOutlined />}
+                style={{ cursor: "pointer" }}
+                onClick={() => handleToggleExclude(record._id)}
+              >
+                {togglingId === record._id ? "..." : excluded ? "No" : "Yes"}
+              </Tag>
+            </Tooltip>
+          )}
         />
         {screens.sm && (
           <Table.Column

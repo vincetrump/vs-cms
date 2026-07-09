@@ -27,7 +27,7 @@ export const WebsiteSelector = ({ value = [], onChange }: Props) => {
     setSelectedKeys(value);
   }, [value]);
 
-  const websites = data?.data ?? [];
+  const websites = (data?.data ?? []).filter((w: any) => !w.excludeFromDeployment);
 
   const sortedWebsites = useMemo(() => {
     return [...websites].sort((a: any, b: any) => {
