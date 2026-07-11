@@ -99,6 +99,9 @@ MongoDB collections (database: `vs-cms`):
 | `linkdeployments` | textLinkId, websiteId, status (deployed\|failed\|removed) — unique(textLinkId, websiteId) |
 | `apikeys` | name, keyHash (SHA256), keyPrefix, hmacSecret, isActive |
 | `jobs` | type, status (pending\|processing\|completed\|failed), logs[] |
+| `guestposts` | title, slug, content (HTML, sanitized), metaDescription, category, anchorText, targetUrl, status, realPublic (false=noindex+no sitemap), wordCount, expiresAt |
+| `guestpostdeployments` | guestPostId, websiteId, filePath, pagePath, category, addedToSitemap — unique(guestPostId, websiteId) |
+| `websitemetadata` | websiteId (unique), siteName, headerHtml, footerHtml, navCategories[], articleTemplate, hasSitemap, lastScannedAt |
 
 Truy cập mongo shell:
 ```bash
@@ -125,7 +128,7 @@ Sale edit link pending → stays pending
 ### Job Processing
 Worker (`worker.service.ts`) poll mỗi 3 giây, xử lý **1 job tại 1 thời điểm**.
 
-Job types: `deploy_links`, `undeploy_links`, `undeploy_all`, `redeploy_link`, `sync_link_websites`, `verify_deployments`, `check_expired`
+Job types: `deploy_links`, `undeploy_links`, `undeploy_all`, `redeploy_link`, `sync_link_websites`, `verify_deployments`, `check_expired`, `deploy_footer_links`, `undeploy_footer_links`, `redeploy_footer_link`, `scan_website_pages`, `check_expired_footer_links`, `deploy_guest_post`, `undeploy_guest_post`, `redeploy_guest_post`, `scan_website_metadata`, `check_expired_guest_posts`
 
 ### Auth
 Login 2 bước: POST `/auth/login` (password → partialToken) → POST `/auth/verify-totp` (TOTP → accessToken)
@@ -146,11 +149,16 @@ HMAC-SHA256: `createHmac('sha256', secret).update(body + timestamp)`. Timestamp 
 | `ssh` | SSH wrapper (ssh2 library) |
 | `cloudflare` | Cloudflare zones API |
 | `sync` | Sync websites + verify deployments |
-| `cron` | Scheduled: check_expired (02:00), verify (03:00), sync (04:00) |
+| `cron` | Scheduled: check_expired + footer + guest posts (02:00), verify (03:00), sync (04:00), scan pages + metadata (05:00) |
 | `discord` | Webhook notifications |
 | `api-keys` | API key management |
 | `external-api` | Third-party API endpoints |
 | `text-link-history` | Audit log cho text link changes |
+| `guest-posts` | Guest post CRUD + toggle/deploy/undeploy (bài viết đầy đủ tại `/{category}/{slug}/index.html`) |
+| `guest-post-deployments` | SSH tạo/xóa article file, render template per site, cập nhật sitemap.xml |
+| `guest-post-history` | Audit log cho guest post changes |
+| `website-metadata` | Scan homepage extract header/footer/CSS/categories, build article template per site |
+| `content-generation` | AI viết bài guest post qua Anthropic API (env ANTHROPIC_API_KEY, AI_MODEL) |
 | `dashboard` | Stats aggregation |
 
 ## Known Issues

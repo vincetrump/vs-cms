@@ -1,8 +1,14 @@
 # Guest Post Feature — Technical Design Document
 
-> **Status**: Design Phase  
-> **Version**: 1.1  
+> **Status**: Implemented (Phase 1–6, gồm Internal Links 6.5 + realPublic SEO gating)  
+> **Version**: 1.3  
 > **Date**: 2026-07-11
+>
+> **Implementation notes**:
+> - `realPublic` flag (v1.2): mặc định noindex + không vào sitemap; `POST /guest-posts/:id/toggle-public` để bật index + sitemap
+> - Internal links (6.5): chèn tối đa 2 link từ bài cùng category, track `internalLinkSourceFiles` trên deployment record, tự gỡ khi undeploy, tự preserve khi redeploy/overwrite
+> - Phase 6 AI: module `content-generation` dùng `@anthropic-ai/sdk` (env `ANTHROPIC_API_KEY`, `AI_MODEL`), endpoint `POST /guest-posts/generate-content` + `GET /guest-posts/ai-status`, panel Generate trong trang create
+> - Website Metadata UI (12.4): section trong Website detail — Rescan / Refresh / Preview Template
 
 ## Table of Contents
 
@@ -98,6 +104,7 @@ Guest Post là chức năng tạo bài viết (article) trên các website tĩnh
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | String | `pending` \| `active` \| `disabled` \| `expired` (default: pending) |
+| `realPublic` | Boolean | SEO visibility (default: false). `false` = render với `<meta name="robots" content="noindex, nofollow">` + KHÔNG đưa vào sitemap. `true` = `index, follow` + đưa vào sitemap. Toggle qua `POST /guest-posts/:id/toggle-public` (admin) → tạo `redeploy_guest_post` job để re-render + đồng bộ sitemap trên các websites đã deploy |
 | `source` | String | `admin` \| `sale` (default: admin) |
 | `createdBy` | ObjectId \| null | Ref → User |
 | `expiresAt` | Date \| null | Thời điểm hết hạn — null = vĩnh viễn |
@@ -236,6 +243,7 @@ Cấu trúc giống `textlinkhistories` và `footerlinkhistories`.
 | `POST` | `/guest-posts/:id/deploy` | Admin | Deploy to specified websiteIds |
 | `POST` | `/guest-posts/:id/undeploy` | Admin | Undeploy from specified websiteIds |
 | `POST` | `/guest-posts/:id/toggle` | Admin | Toggle status: active↔disabled, pending→active |
+| `POST` | `/guest-posts/:id/toggle-public` | Admin | Toggle realPublic: noindex↔index + thêm/gỡ sitemap (redeploy job) |
 | `GET` | `/guest-posts/:id/history` | All | Audit log |
 | `GET` | `/guest-posts/:id/deployments` | Admin | Deployment records per website |
 

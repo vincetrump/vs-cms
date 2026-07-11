@@ -154,6 +154,29 @@ Verifies all test data was fully cleaned up from both websites.
 
 ---
 
+## Guest Post — manual test checklist (chưa có trong e2e-test.sh)
+
+Các case cần test tay sau khi deploy tính năng Guest Post:
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-01 | Scan metadata 1 website | Website detail → Guest Post Metadata → Rescan, đợi job xong → Refresh | siteName/categories/sitemap hiển thị đúng, Preview Template render giống site |
+| GP-02 | Admin tạo guest post + deploy | Tạo post (chọn 1-2 websites) | Job `deploy_guest_post` chạy, file `/{cat}/{slug}/index.html` tồn tại trên server, HTML chứa header/footer của site |
+| GP-03 | Mặc định noindex + không sitemap | Xem source bài vừa deploy | `<meta name="robots" content="noindex, nofollow">`, sitemap.xml KHÔNG có entry |
+| GP-04 | Toggle Real Public | Show page → Go Public, đợi redeploy job | Meta đổi thành `index, follow`, sitemap.xml có entry bài viết |
+| GP-05 | Toggle về NoIndex | Show page → Về NoIndex | Meta về noindex, entry sitemap bị gỡ |
+| GP-06 | Backlink trong bài | Xem source bài deploy | `<a href="{targetUrl}">{anchorText}</a>` có trong content (hoặc đoạn "Tham khảo thêm" cuối bài) |
+| GP-07 | Internal links | Deploy 2-3 bài cùng category lên cùng website | Bài cũ có block `vs-cms-ilink:{id}` trỏ đến bài mới (tối đa 2 nguồn) |
+| GP-08 | Sale tạo → pending → approve | Sale tạo post, admin approve | Post pending không deploy; sau approve mới deploy |
+| GP-09 | Sale edit bài active | Sale sửa content bài active | Status về pending, nội dung trên site giữ nguyên đến khi admin approve |
+| GP-10 | Undeploy / delete | Disable hoặc xóa post | File bị xóa, slug dir bị xóa nếu rỗng (category dir còn), sitemap entry gỡ, internal links gỡ khỏi bài khác |
+| GP-11 | Expired | Set expiresAt quá khứ, chạy job `check_expired_guest_posts` | Post → expired, undeploy all |
+| GP-12 | Slug trùng | Deploy 2 post cùng slug cùng category lên 1 site | Post thứ 2 tự thành `{slug}-2` |
+| GP-13 | AI generate (cần ANTHROPIC_API_KEY) | Create page → panel AI → nhập topic + anchor/URL → Generate | Form được điền title/slug/meta/category/content, backlink có trong bài |
+| GP-14 | Redeploy giữ URL + internal links | Admin sửa content bài active | File được overwrite, URL không đổi, ilink markers của bài khác trong file vẫn còn |
+
+---
+
 ## Summary by category
 
 | Category | Count | Description |
