@@ -44,6 +44,18 @@ export class CronService {
     await this.jobsService.create('scan_website_pages');
   }
 
+  @Cron('0 2 * * *')
+  async checkExpiredGuestPosts() {
+    this.logger.log('Creating check_expired_guest_posts job...');
+    await this.jobsService.create('check_expired_guest_posts');
+  }
+
+  @Cron('0 5 * * *')
+  async scanWebsiteMetadata() {
+    this.logger.log('Creating scan_website_metadata job...');
+    await this.jobsService.create('scan_website_metadata');
+  }
+
   @Cron('0 7,19 * * *')
   async remindPendingLinks() {
     this.logger.log('Checking for pending links...');

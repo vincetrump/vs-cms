@@ -25,6 +25,11 @@ export default () => ({
   discord: {
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || '',
     footerWebhookUrl: process.env.DISCORD_FOOTER_WEBHOOK_URL || '',
+    guestPostWebhookUrl: process.env.DISCORD_GUEST_POST_WEBHOOK_URL || '',
+  },
+  ai: {
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.AI_MODEL || 'claude-opus-4-8',
   },
   app: {
     port: parseInt(process.env.API_PORT || '3001', 10),

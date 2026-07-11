@@ -14,6 +14,10 @@ import { TextLinkHistoryModule } from '../text-link-history/text-link-history.mo
 import { FooterLinkHistoryModule } from '../footer-link-history/footer-link-history.module';
 import { WebsitePagesModule } from '../website-pages/website-pages.module';
 import { WebsitesModule } from '../websites/websites.module';
+import { GuestPostsModule } from '../guest-posts/guest-posts.module';
+import { GuestPostDeploymentsModule } from '../guest-post-deployments/guest-post-deployments.module';
+import { GuestPostHistoryModule } from '../guest-post-history/guest-post-history.module';
+import { WebsiteMetadataModule } from '../website-metadata/website-metadata.module';
 
 @Module({
   imports: [
@@ -24,9 +28,13 @@ import { WebsitesModule } from '../websites/websites.module';
     forwardRef(() => TextLinksModule),
     forwardRef(() => FooterLinksModule),
     forwardRef(() => WebsitesModule),
+    forwardRef(() => GuestPostsModule),
+    forwardRef(() => GuestPostDeploymentsModule),
+    forwardRef(() => WebsiteMetadataModule),
     DiscordModule,
     TextLinkHistoryModule,
     FooterLinkHistoryModule,
+    GuestPostHistoryModule,
     WebsitePagesModule,
   ],
   providers: [JobsService, WorkerService],

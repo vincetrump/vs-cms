@@ -185,6 +185,47 @@ export class SshService implements OnModuleDestroy {
     }
   }
 
+  async directoryExists(dirPath: string, serverIp?: string): Promise<boolean> {
+    const safe = this.validatePath(dirPath);
+    try {
+      const result = await this.executeCommand(
+        `test -d '${safe.replace(/'/g, "'\\''")}' && echo "exists"`,
+        serverIp,
+      );
+      return result.trim() === 'exists';
+    } catch {
+      return false;
+    }
+  }
+
+  async createDirectory(dirPath: string, serverIp?: string): Promise<void> {
+    const safe = this.validatePath(dirPath);
+    await this.executeCommand(`mkdir -p '${safe.replace(/'/g, "'\\''")}'`, serverIp);
+  }
+
+  async deleteFile(filePath: string, serverIp?: string): Promise<void> {
+    const safe = this.validatePath(filePath);
+    await this.executeCommand(`rm -f '${safe.replace(/'/g, "'\\''")}'`, serverIp);
+  }
+
+  async removeDirIfEmpty(dirPath: string, serverIp?: string): Promise<void> {
+    const safe = this.validatePath(dirPath);
+    await this.executeCommand(
+      `rmdir '${safe.replace(/'/g, "'\\''")}' 2>/dev/null || true`,
+      serverIp,
+    );
+  }
+
+  async listCategoryDirs(docRoot: string, serverIp?: string): Promise<string[]> {
+    const safe = this.validatePath(docRoot).replace(/\/$/, '');
+    const escaped = safe.replace(/'/g, "'\\''");
+    const result = await this.executeCommand(
+      `for d in '${escaped}'/*/; do [ -f "$d/index.html" ] && basename "$d"; done 2>/dev/null || true`,
+      serverIp,
+    );
+    return result.trim().split('\n').filter(Boolean);
+  }
+
   async findLiteSpeedDocRoots(serverIp?: string): Promise<Map<string, string>> {
     const docRoots = new Map<string, string>();
 

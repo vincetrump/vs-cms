@@ -9,10 +9,12 @@ export class DiscordService {
   private readonly adminUrl: string;
 
   private readonly footerWebhookUrl: string;
+  private readonly guestPostWebhookUrl: string;
 
   constructor(private configService: ConfigService) {
     this.webhookUrl = this.configService.get<string>('discord.webhookUrl', '');
     this.footerWebhookUrl = this.configService.get<string>('discord.footerWebhookUrl', '');
+    this.guestPostWebhookUrl = this.configService.get<string>('discord.guestPostWebhookUrl', '');
     this.adminUrl = this.configService.get<string>('app.adminUrl', 'http://localhost:5173');
   }
 
@@ -344,6 +346,177 @@ export class DiscordService {
     await this.sendFooterWebhook({ embeds: [embed] });
   }
 
+  async sendGuestPostCreatedNotification(post: any) {
+    const embed = {
+      title: '📝 New Guest Post Created',
+      color: post.status === 'pending' ? 0xf39c12 : 0x3498db,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Category', value: post.category, inline: true },
+        { name: 'Word Count', value: `${post.wordCount || 0}`, inline: true },
+        { name: 'Target URL', value: post.targetUrl },
+        { name: 'Anchor Text', value: post.anchorText, inline: true },
+        { name: 'Rel', value: post.rel || 'dofollow', inline: true },
+        { name: 'Websites', value: `${post.requestedWebsiteIds?.length || 0}`, inline: true },
+        { name: 'Status', value: post.status, inline: true },
+        { name: 'Expires', value: post.expiresAt ? new Date(post.expiresAt).toLocaleDateString() : 'Never', inline: true },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    if (post.status === 'pending') {
+      embed.fields.push({
+        name: 'Actions',
+        value: `[✅ Approve](${this.adminUrl}/guest-posts/show/${post._id})`,
+        inline: false,
+      });
+    }
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostUpdatedNotification(post: any, changes: Record<string, { old: any; new: any }>) {
+    const changeLines = Object.entries(changes)
+      .map(([key, val]) => `**${key}**: \`${val.old}\` → \`${val.new}\``)
+      .join('\n');
+
+    const embed = {
+      title: '✏️ Guest Post Updated',
+      color: 0xf39c12,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Post ID', value: String(post._id), inline: true },
+        { name: 'Changes', value: changeLines || 'No field changes' },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostPendingReviewNotification(post: any, changes: Record<string, { old: any; new: any }>) {
+    const changeLines = Object.entries(changes)
+      .filter(([key]) => key !== 'status')
+      .map(([key, val]) => `**${key}**: \`${val.old}\` → \`${val.new}\``)
+      .join('\n');
+
+    const embed = {
+      title: '⚠️ Guest Post Edit — Pending Approval',
+      color: 0xf39c12,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Status', value: '`active` → `pending`', inline: true },
+        { name: 'Changes', value: changeLines || 'No field changes' },
+        {
+          name: 'Actions',
+          value: `[✅ Review & Approve](${this.adminUrl}/guest-posts/show/${post._id})`,
+        },
+      ],
+      footer: { text: `ID: ${post._id} • Websites keep old content until approved` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostStatusChangeNotification(post: any, oldStatus: string, newStatus: string) {
+    const colorMap: Record<string, number> = {
+      active: 0x2ecc71,
+      disabled: 0xe74c3c,
+      expired: 0x95a5a6,
+      pending: 0xf39c12,
+    };
+
+    const embed = {
+      title: '🔄 Guest Post Status Changed',
+      color: colorMap[newStatus] || 0x3498db,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Status Change', value: `\`${oldStatus}\` → \`${newStatus}\``, inline: true },
+        { name: 'Target URL', value: post.targetUrl },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostDeployNotification(post: any, results: any[]) {
+    const success = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+
+    const embed = {
+      title: '🚀 Guest Post Deployed',
+      color: failed === 0 ? 0x2ecc71 : 0xf39c12,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Target', value: post.targetUrl, inline: true },
+        { name: 'Results', value: `✅ ${success} succeeded | ❌ ${failed} failed` },
+        {
+          name: 'Websites',
+          value: results
+            .map((r) => `${r.success ? '✅' : '❌'} ${r.domain}${r.success && r.pagePath ? ` → ${r.pagePath}` : ''}`)
+            .join('\n') || 'None',
+        },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostUndeployNotification(post: any, results: any[]) {
+    const removed = results.filter((r) => r.success).length;
+
+    const embed = {
+      title: '🔻 Guest Post Undeployed',
+      color: 0xe74c3c,
+      fields: [
+        { name: 'Title', value: post.title || 'Deleted post', inline: true },
+        { name: 'Results', value: `Removed from ${removed} website(s)` },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostDeleteNotification(post: any) {
+    const embed = {
+      title: '🗑️ Guest Post Deleted',
+      color: 0xe74c3c,
+      fields: [
+        { name: 'Title', value: post.title, inline: true },
+        { name: 'Category', value: post.category, inline: true },
+        { name: 'Target URL', value: post.targetUrl },
+      ],
+      footer: { text: `ID: ${post._id}` },
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
+  async sendGuestPostExpirationNotification(posts: any[]) {
+    const embed = {
+      title: '⏰ Guest Posts Expired',
+      color: 0x95a5a6,
+      description: `${posts.length} guest post(s) have expired and been removed from all websites.`,
+      fields: posts.slice(0, 10).map((p) => ({
+        name: p.title,
+        value: `${p.targetUrl} | Expired: ${new Date(p.expiresAt).toLocaleDateString()}`,
+      })),
+      timestamp: new Date().toISOString(),
+    };
+
+    await this.sendGuestPostWebhook({ embeds: [embed] });
+  }
+
   private async sendWebhook(payload: any) {
     if (!this.webhookUrl) {
       this.logger.warn('Discord webhook URL not configured');
@@ -367,6 +540,20 @@ export class DiscordService {
       await axios.post(this.footerWebhookUrl, payload);
     } catch (err: any) {
       this.logger.error(`Discord footer webhook failed: ${err.message}`);
+    }
+  }
+
+  private async sendGuestPostWebhook(payload: any) {
+    const url = this.guestPostWebhookUrl || this.webhookUrl;
+    if (!url) {
+      this.logger.warn('Discord guest post webhook URL not configured');
+      return;
+    }
+
+    try {
+      await axios.post(url, payload);
+    } catch (err: any) {
+      this.logger.error(`Discord guest post webhook failed: ${err.message}`);
     }
   }
 }

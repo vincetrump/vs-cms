@@ -10,6 +10,10 @@ import { TextLinkHistoryService } from '../text-link-history/text-link-history.s
 import { FooterLinkHistoryService } from '../footer-link-history/footer-link-history.service';
 import { WebsitePagesService } from '../website-pages/website-pages.service';
 import { WebsitesService } from '../websites/websites.service';
+import { GuestPostsService } from '../guest-posts/guest-posts.service';
+import { GuestPostDeploymentsService } from '../guest-post-deployments/guest-post-deployments.service';
+import { GuestPostHistoryService } from '../guest-post-history/guest-post-history.service';
+import { WebsiteMetadataService } from '../website-metadata/website-metadata.service';
 import { JobDocument } from './schemas/job.schema';
 
 @Injectable()
@@ -29,6 +33,10 @@ export class WorkerService implements OnModuleInit {
     private footerHistoryService: FooterLinkHistoryService,
     private websitePagesService: WebsitePagesService,
     private websitesService: WebsitesService,
+    private guestPostsService: GuestPostsService,
+    private guestPostDeploymentsService: GuestPostDeploymentsService,
+    private guestPostHistoryService: GuestPostHistoryService,
+    private websiteMetadataService: WebsiteMetadataService,
   ) {}
 
   async onModuleInit() {
@@ -108,6 +116,21 @@ export class WorkerService implements OnModuleInit {
           break;
         case 'check_expired_footer_links':
           result = await this.handleCheckExpiredFooterLinks(jobId);
+          break;
+        case 'deploy_guest_post':
+          result = await this.handleDeployGuestPost(jobId, job.params);
+          break;
+        case 'undeploy_guest_post':
+          result = await this.handleUndeployGuestPost(jobId, job.params);
+          break;
+        case 'redeploy_guest_post':
+          result = await this.handleRedeployGuestPost(jobId, job.params);
+          break;
+        case 'scan_website_metadata':
+          result = await this.handleScanWebsiteMetadata(jobId, job.params);
+          break;
+        case 'check_expired_guest_posts':
+          result = await this.handleCheckExpiredGuestPosts(jobId);
           break;
         default:
           throw new Error(`Unknown job type: ${job.type}`);
@@ -435,6 +458,158 @@ export class WorkerService implements OnModuleInit {
     }
 
     await this.discordService.sendFooterLinkExpirationNotification(expired);
+
+    return { expired: expired.length };
+  }
+
+  private async handleDeployGuestPost(jobId: string, params: Record<string, any>) {
+    const { guestPostId, websiteIds } = params;
+    const post = await this.guestPostsService.findById(guestPostId);
+    if (!post) throw new Error('Guest post not found');
+
+    await this.jobsService.updateProgress(jobId, 0, websiteIds.length);
+    await this.jobsService.addLog(jobId, 'info', `Deploying guest post "${post.title}" to ${websiteIds.length} websites`);
+
+    const results = await this.guestPostDeploymentsService.deployToWebsites(guestPostId, websiteIds);
+
+    const success = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+
+    for (const r of results) {
+      await this.jobsService.addLog(jobId, r.success ? 'info' : 'error',
+        `${r.domain}: ${r.success ? `deployed at ${r.pagePath}` : r.error}`);
+    }
+
+    await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
+
+    await this.guestPostHistoryService.log({
+      guestPostId,
+      action: failed > 0 ? 'deploy_failed' : 'deploy_completed',
+      metadata: { jobId, success, failed, total: results.length, websiteIds },
+    });
+
+    await this.discordService.sendGuestPostDeployNotification(post, results);
+
+    return { success, failed, total: results.length };
+  }
+
+  private async handleUndeployGuestPost(jobId: string, params: Record<string, any>) {
+    const { guestPostId, websiteIds } = params;
+    const post = await this.guestPostsService.findById(guestPostId);
+
+    let results;
+    if (websiteIds?.length) {
+      await this.jobsService.updateProgress(jobId, 0, websiteIds.length);
+      await this.jobsService.addLog(jobId, 'info', `Undeploying guest post from ${websiteIds.length} websites`);
+      results = await this.guestPostDeploymentsService.undeployFromWebsites(guestPostId, websiteIds);
+      await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
+    } else {
+      await this.jobsService.addLog(jobId, 'info', 'Undeploying guest post from all websites...');
+      results = await this.guestPostDeploymentsService.undeployFromAll(guestPostId);
+    }
+
+    for (const r of results) {
+      await this.jobsService.addLog(jobId, r.success ? 'info' : 'error',
+        `${r.domain}: ${r.success ? 'removed' : r.error}`);
+    }
+
+    await this.guestPostHistoryService.log({
+      guestPostId,
+      action: 'undeploy_completed',
+      metadata: { jobId, removed: results.filter((r) => r.success).length, total: results.length },
+    });
+
+    if (post) {
+      await this.discordService.sendGuestPostUndeployNotification(post, results);
+    }
+
+    return { removed: results.filter((r) => r.success).length, total: results.length };
+  }
+
+  private async handleRedeployGuestPost(jobId: string, params: Record<string, any>) {
+    const { guestPostId } = params;
+    await this.jobsService.addLog(jobId, 'info', 'Redeploying guest post to all deployed websites...');
+    await this.guestPostDeploymentsService.redeployPost(guestPostId);
+    await this.jobsService.addLog(jobId, 'info', 'Redeployment completed');
+
+    await this.guestPostHistoryService.log({
+      guestPostId,
+      action: 'redeployed',
+      metadata: { jobId },
+    });
+
+    return { redeployed: true };
+  }
+
+  private async handleScanWebsiteMetadata(jobId: string, params: Record<string, any>) {
+    const websiteIds = params?.websiteIds;
+    let websites;
+
+    if (websiteIds?.length) {
+      websites = await Promise.all(websiteIds.map((id: string) => this.websitesService.findById(id)));
+      websites = websites.filter(Boolean);
+    } else {
+      websites = await this.websitesService.findAllActive();
+    }
+
+    await this.jobsService.updateProgress(jobId, 0, websites.length);
+    await this.jobsService.addLog(jobId, 'info', `Scanning metadata for ${websites.length} websites`);
+
+    let scanned = 0;
+    let errors = 0;
+
+    for (let i = 0; i < websites.length; i++) {
+      const website = websites[i];
+      if (!website.documentRoot) {
+        await this.jobsService.addLog(jobId, 'warn', `${website.domain}: no document root, skipping`);
+        continue;
+      }
+
+      try {
+        const metadata = await this.websiteMetadataService.scanAndUpsert(website._id.toString());
+        await this.jobsService.addLog(jobId, 'info',
+          `${website.domain}: ${metadata.navCategories.length} categories, sitemap=${metadata.hasSitemap ? 'yes' : 'no'}`);
+        scanned++;
+      } catch (err: any) {
+        await this.jobsService.addLog(jobId, 'error', `${website.domain}: ${err.message}`);
+        errors++;
+      }
+
+      await this.jobsService.updateProgress(jobId, i + 1, websites.length);
+    }
+
+    return { scanned, errors, total: websites.length };
+  }
+
+  private async handleCheckExpiredGuestPosts(jobId: string) {
+    await this.jobsService.addLog(jobId, 'info', 'Checking for expired guest posts...');
+    const expired = await this.guestPostsService.findExpired();
+
+    if (!expired.length) {
+      await this.jobsService.addLog(jobId, 'info', 'No expired guest posts found');
+      return { expired: 0 };
+    }
+
+    await this.jobsService.updateProgress(jobId, 0, expired.length);
+    await this.jobsService.addLog(jobId, 'info', `Found ${expired.length} expired guest posts`);
+
+    for (let i = 0; i < expired.length; i++) {
+      const post = expired[i];
+      await this.jobsService.addLog(jobId, 'info', `Processing expired guest post: ${post.title}`);
+      await this.guestPostDeploymentsService.undeployFromAll(post._id.toString());
+      await this.guestPostsService.update(post._id.toString(), { status: 'expired' });
+
+      await this.guestPostHistoryService.log({
+        guestPostId: post._id.toString(),
+        action: 'expired',
+        changes: { status: { old: post.status, new: 'expired' } },
+        metadata: { jobId, expiresAt: post.expiresAt?.toISOString() },
+      });
+
+      await this.jobsService.updateProgress(jobId, i + 1, expired.length);
+    }
+
+    await this.discordService.sendGuestPostExpirationNotification(expired);
 
     return { expired: expired.length };
   }

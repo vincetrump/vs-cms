@@ -22,6 +22,10 @@ import { FooterLinksModule } from './modules/footer-links/footer-links.module';
 import { FooterLinkDeploymentsModule } from './modules/footer-link-deployments/footer-link-deployments.module';
 import { FooterLinkHistoryModule } from './modules/footer-link-history/footer-link-history.module';
 import { WebsitePagesModule } from './modules/website-pages/website-pages.module';
+import { GuestPostsModule } from './modules/guest-posts/guest-posts.module';
+import { GuestPostDeploymentsModule } from './modules/guest-post-deployments/guest-post-deployments.module';
+import { GuestPostHistoryModule } from './modules/guest-post-history/guest-post-history.module';
+import { WebsiteMetadataModule } from './modules/website-metadata/website-metadata.module';
 import { DashboardController } from './modules/dashboard/dashboard.controller';
 import { TotpSetupGuard } from './common/guards/totp-setup.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
@@ -52,6 +56,10 @@ import { PasswordChangeGuard } from './common/guards/password-change.guard';
     FooterLinkDeploymentsModule,
     FooterLinkHistoryModule,
     WebsitePagesModule,
+    GuestPostsModule,
+    GuestPostDeploymentsModule,
+    GuestPostHistoryModule,
+    WebsiteMetadataModule,
   ],
   controllers: [DashboardController],
   providers: [
