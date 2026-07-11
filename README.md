@@ -175,6 +175,14 @@ vs-cms/
 │           └── providers/          # authProvider, dataProvider
 ```
 
+## Tài liệu
+
+| Document | Mô tả |
+|----------|-------|
+| [Guest Post Feature](docs/GUEST_POST_FEATURE.md) | Thiết kế kỹ thuật chi tiết cho chức năng Guest Post |
+| [E2E Test Cases](docs/E2E_TEST_CASES.md) | Test cases cho hệ thống |
+| [Future Features](docs/FUTURE_FEATURES.md) | Các tính năng dự kiến phát triển |
+
 ## Tính năng
 
 ### Quản lý Websites
