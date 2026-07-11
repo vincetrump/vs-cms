@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useShow, useNavigation } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
-import { Descriptions, Tag, Grid, Space, Table, Typography, Button, Tooltip, message } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, EyeOutlined, CopyOutlined, CloudOutlined, ThunderboltOutlined, ScanOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Descriptions, Tag, Grid, Space, Table, Typography, Button, Tooltip, message, Modal } from "antd";
+import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, QuestionCircleOutlined, EyeOutlined, CopyOutlined, CloudOutlined, ThunderboltOutlined, ScanOutlined, ReloadOutlined, FileTextOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { useBreakpoint } = Grid;
@@ -46,6 +46,11 @@ export const WebsiteShow = () => {
   const [footerDeployments, setFooterDeployments] = useState<any[]>([]);
   const [footerLoading, setFooterLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [metadata, setMetadata] = useState<any>(null);
+  const [metadataScanning, setMetadataScanning] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const fetchPages = useCallback(async (id: string) => {
     setPagesLoading(true);
@@ -65,12 +70,47 @@ export const WebsiteShow = () => {
     finally { setFooterLoading(false); }
   }, []);
 
+  const fetchMetadata = useCallback(async (id: string) => {
+    try {
+      const res = await axiosInstance.get(`${API_URL}/website-metadata/${id}`);
+      setMetadata(res.data);
+    } catch { setMetadata(null); }
+  }, []);
+
   useEffect(() => {
     if (record?._id) {
       fetchPages(record._id);
       fetchFooterDeployments(record._id);
+      fetchMetadata(record._id);
     }
-  }, [record?._id, fetchPages, fetchFooterDeployments]);
+  }, [record?._id, fetchPages, fetchFooterDeployments, fetchMetadata]);
+
+  const handleScanMetadata = async () => {
+    if (!record?._id) return;
+    setMetadataScanning(true);
+    try {
+      await axiosInstance.post(`${API_URL}/website-metadata/scan`, { websiteIds: [record._id] });
+      message.success("Metadata scan job queued — refresh sau vài giây");
+    } catch {
+      message.error("Failed to queue metadata scan");
+    } finally {
+      setMetadataScanning(false);
+    }
+  };
+
+  const handlePreviewTemplate = async () => {
+    if (!record?._id) return;
+    setPreviewLoading(true);
+    try {
+      const res = await axiosInstance.get(`${API_URL}/website-metadata/${record._id}/preview`);
+      setPreviewHtml(res.data.html);
+      setPreviewOpen(true);
+    } catch {
+      message.error("Chưa có metadata — chạy Rescan trước");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const handleScanPages = async () => {
     if (!record?._id) return;
@@ -143,6 +183,61 @@ export const WebsiteShow = () => {
           {record?.lastSyncedAt ? new Date(record.lastSyncedAt).toLocaleString() : "Never"}
         </Descriptions.Item>
       </Descriptions>
+
+      <Typography.Title level={5} style={{ marginTop: 24 }}>
+        <Space>
+          <FileTextOutlined /> Guest Post Metadata
+          <Button size="small" icon={<ScanOutlined />} loading={metadataScanning} onClick={handleScanMetadata}>
+            Rescan
+          </Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => record?._id && fetchMetadata(record._id)}>
+            Refresh
+          </Button>
+          {metadata && (
+            <Button size="small" icon={<EyeOutlined />} loading={previewLoading} onClick={handlePreviewTemplate}>
+              Preview Template
+            </Button>
+          )}
+        </Space>
+      </Typography.Title>
+      {metadata ? (
+        <Descriptions bordered column={screens.md ? 2 : 1} size="small">
+          <Descriptions.Item label="Site Name">{metadata.siteName || "-"}</Descriptions.Item>
+          <Descriptions.Item label="Language"><Tag>{metadata.language}</Tag></Descriptions.Item>
+          <Descriptions.Item label="Categories" span={screens.md ? 2 : 1}>
+            {metadata.navCategories?.length ? (
+              <Space wrap>
+                {metadata.navCategories.map((c: string) => <Tag key={c} color="cyan">{c}</Tag>)}
+              </Space>
+            ) : <Typography.Text type="secondary">Không có category nào (sẽ dùng tong-hop khi deploy)</Typography.Text>}
+          </Descriptions.Item>
+          <Descriptions.Item label="Sitemap">
+            <Tag color={metadata.hasSitemap ? "green" : "default"}>{metadata.hasSitemap ? "Có" : "Không"}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Last Scanned">
+            {metadata.lastScannedAt ? new Date(metadata.lastScannedAt).toLocaleString() : "Never"}
+          </Descriptions.Item>
+        </Descriptions>
+      ) : (
+        <Typography.Text type="secondary">
+          Chưa scan metadata. Click Rescan để extract header/footer/categories phục vụ Guest Post.
+        </Typography.Text>
+      )}
+      <Modal
+        title={`Preview Article Template — ${record?.domain || ""}`}
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        width="90%"
+        style={{ top: 20 }}
+      >
+        <iframe
+          title="template-preview"
+          srcDoc={previewHtml}
+          sandbox=""
+          style={{ width: "100%", height: "70vh", border: "1px solid #eee", borderRadius: 4, background: "#fff" }}
+        />
+      </Modal>
 
       <Typography.Title level={5} style={{ marginTop: 24 }}>
         Text Links ({deployments.length})

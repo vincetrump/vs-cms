@@ -3,7 +3,7 @@ import { ThemedLayoutV2, useNotificationProvider, RefineThemes } from "@refinede
 import routerProvider, { NavigateToResource, CatchAllNavigate } from "@refinedev/react-router";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router";
 import { ConfigProvider, App as AntdApp } from "antd";
-import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined, TeamOutlined, ColumnHeightOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, KeyOutlined, DashboardOutlined, HistoryOutlined, SettingOutlined, BookOutlined, TeamOutlined, ColumnHeightOutlined, FileTextOutlined } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
 import "./styles/responsive.css";
@@ -23,6 +23,10 @@ import { FooterLinkList } from "./pages/footer-links/list";
 import { FooterLinkCreate } from "./pages/footer-links/create";
 import { FooterLinkEdit } from "./pages/footer-links/edit";
 import { FooterLinkShow } from "./pages/footer-links/show";
+import { GuestPostList } from "./pages/guest-posts/list";
+import { GuestPostCreate } from "./pages/guest-posts/create";
+import { GuestPostEdit } from "./pages/guest-posts/edit";
+import { GuestPostShow } from "./pages/guest-posts/show";
 import { ApiKeyList } from "./pages/api-keys/list";
 import { ApiKeyCreate } from "./pages/api-keys/create";
 import { ApiKeyShow } from "./pages/api-keys/show";
@@ -77,6 +81,7 @@ const accessControlProvider: AccessControlProvider = {
     const saleAllowed: Record<string, string[]> = {
       "text-links": ["list", "create", "edit", "show", "delete"],
       "footer-links": ["list", "create", "edit", "show", "delete"],
+      "guest-posts": ["list", "create", "edit", "show", "delete"],
       dashboard: ["list"],
       settings: ["list"],
       guides: ["list"],
@@ -125,6 +130,14 @@ function App() {
                 edit: "/footer-links/edit/:id",
                 show: "/footer-links/show/:id",
                 meta: { label: "Footer Links", icon: <ColumnHeightOutlined /> },
+              },
+              {
+                name: "guest-posts",
+                list: "/guest-posts",
+                create: "/guest-posts/create",
+                edit: "/guest-posts/edit/:id",
+                show: "/guest-posts/show/:id",
+                meta: { label: "Guest Posts", icon: <FileTextOutlined /> },
               },
               {
                 name: "api-keys",
@@ -199,6 +212,12 @@ function App() {
                   <Route path="create" element={<FooterLinkCreate />} />
                   <Route path="edit/:id" element={<FooterLinkEdit />} />
                   <Route path="show/:id" element={<FooterLinkShow />} />
+                </Route>
+                <Route path="/guest-posts">
+                  <Route index element={<GuestPostList />} />
+                  <Route path="create" element={<GuestPostCreate />} />
+                  <Route path="edit/:id" element={<GuestPostEdit />} />
+                  <Route path="show/:id" element={<GuestPostShow />} />
                 </Route>
                 <Route path="/api-keys">
                   <Route index element={<ApiKeyList />} />
