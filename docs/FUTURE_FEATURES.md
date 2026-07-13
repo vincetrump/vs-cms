@@ -2,6 +2,15 @@
 
 ## 1. Text Link History Tracking
 
+> **Status: ✅ ĐÃ TRIỂN KHAI (core)** — module `text-link-history` (và các bản fork `footer-link-history`, `guest-post-history`) đã có trong codebase: schema + `log()` service, tích hợp controller/worker, endpoint `GET /text-links/:id/history`, tab "Lịch sử" (Timeline) trong trang show.
+>
+> Phần thiết kế dưới đây giữ lại làm tham khảo. Các hạng mục **chưa làm** (Phase 3 — Nâng cao):
+> - `GET /text-links/:id/history/summary` (status timeline aggregation)
+> - Filter history theo action/from/to (hiện chỉ có pagination)
+> - Status timeline visualization trên UI
+> - Export history CSV, bulk history view theo website
+> - `metadata.ipAddress` không được ghi
+
 ### Mục tiêu
 
 Xây dựng hệ thống audit log toàn diện cho text link, ghi lại mọi thay đổi về status, nội dung và deployment. Hiện tại, thông tin thay đổi chỉ được gửi qua Discord notification và không lưu trữ trong database — khi cần tra cứu lịch sử một link, không có cách nào xem lại.

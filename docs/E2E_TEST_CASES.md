@@ -1,6 +1,7 @@
 # VS-CMS E2E Test Cases
 
-**Total: 81 tests** | Last run: 79 pass / 2 fail (97.5%)
+**Automated: 81 tests** (text link + footer link) | Last run: 79 pass / 2 fail (97.5%)
+**Manual: 14 cases** (Guest Post GP-01 → GP-14, xem section cuối — chưa automate)
 
 Script: [`docs/e2e-test.sh`](e2e-test.sh)
 

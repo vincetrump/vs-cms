@@ -1,8 +1,8 @@
-# Guest Post Feature — Technical Design Document
+# Guest Post Feature — Technical Documentation
 
-> **Status**: Implemented (Phase 1–6, gồm Internal Links 6.5 + realPublic SEO gating)  
-> **Version**: 1.3  
-> **Date**: 2026-07-11
+> **Status**: Implemented (Phase 1–6, gồm Internal Links 6.5 + realPublic SEO gating) — tài liệu đã đồng bộ với code (as-built)  
+> **Version**: 1.4  
+> **Date**: 2026-07-13
 >
 > **Implementation notes**:
 > - `realPublic` flag (v1.2): mặc định noindex + không vào sitemap; `POST /guest-posts/:id/toggle-public` để bật index + sitemap
@@ -25,9 +25,9 @@
 - [11. Discord Notifications](#11-discord-notifications)
 - [12. Frontend Pages](#12-frontend-pages)
 - [13. Reuse Analysis — Kế thừa từ Text Link & Footer Link](#13-reuse-analysis--kế-thừa-từ-text-link--footer-link)
-- [13. Reuse Analysis — Kế thừa từ Text Link & Footer Link](#13-reuse-analysis--kế-thừa-từ-text-link--footer-link)
 - [14. Constraints & Rules](#14-constraints--rules)
 - [15. Implementation Phases](#15-implementation-phases)
+- [16. Environment Variables](#16-environment-variables)
 
 ---
 
@@ -53,14 +53,15 @@ Guest Post là chức năng tạo bài viết (article) trên các website tĩnh
 
 ## 2. Module Architecture
 
-### Modules mới (tạo từ đầu)
+### Modules mới (đã triển khai)
 
 | Module | Path | Chức năng |
 |--------|------|-----------|
-| `guest-posts` | `apps/api/src/modules/guest-posts/` | Schema, DTO, Controller, Service — CRUD + toggle + approve |
-| `guest-post-deployments` | `apps/api/src/modules/guest-post-deployments/` | SSH deploy/undeploy article, template rendering, sitemap update |
+| `guest-posts` | `apps/api/src/modules/guest-posts/` | Schema, DTO, Controller, Service — CRUD + toggle + toggle-public + sanitize HTML + wordCount + slugify |
+| `guest-post-deployments` | `apps/api/src/modules/guest-post-deployments/` | SSH deploy/undeploy article, template rendering, sitemap update, internal links |
 | `guest-post-history` | `apps/api/src/modules/guest-post-history/` | Audit log — mọi thay đổi status, content, deployment |
-| `website-metadata` | `apps/api/src/modules/website-metadata/` | Lưu header/footer/CSS/nav categories per website. Scan từ homepage via SSH |
+| `website-metadata` | `apps/api/src/modules/website-metadata/` | Lưu header/footer/CSS/nav categories per website. Scan từ homepage via SSH, build article template |
+| `content-generation` | `apps/api/src/modules/content-generation/` | Phase 6 — AI viết bài qua Anthropic API (`@anthropic-ai/sdk`), structured JSON output |
 
 ### Modules có sẵn (reuse)
 
@@ -154,8 +155,9 @@ Guest Post là chức năng tạo bài viết (article) trên các website tĩnh
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `addedToSitemap` | Boolean | Đã thêm vào sitemap.xml chưa (default: false) |
+| `addedToSitemap` | Boolean | Đã thêm vào sitemap.xml chưa (default: false). Chỉ true khi post đang `realPublic` |
 | `internalLinksCount` | Number | Số internal links đã chèn từ pages khác (default: 0) |
+| `internalLinkSourceFiles` | String[] | File paths trên website này nơi đã chèn internal link trỏ đến bài viết — dùng để gỡ markers khi undeploy |
 
 #### Indexes
 
@@ -246,6 +248,8 @@ Cấu trúc giống `textlinkhistories` và `footerlinkhistories`.
 | `POST` | `/guest-posts/:id/toggle-public` | Admin | Toggle realPublic: noindex↔index + thêm/gỡ sitemap (redeploy job) |
 | `GET` | `/guest-posts/:id/history` | All | Audit log |
 | `GET` | `/guest-posts/:id/deployments` | Admin | Deployment records per website |
+| `POST` | `/guest-posts/generate-content` | All | Phase 6 — AI generate draft `{title, slug, metaDescription, category, content, wordCount}` từ topic + backlink info. Chưa lưu DB |
+| `GET` | `/guest-posts/ai-status` | All | `{ configured: boolean }` — server có ANTHROPIC_API_KEY hay không (UI dùng để ẩn/hiện panel AI) |
 
 ### Website Metadata Endpoints
 
@@ -271,6 +275,20 @@ disabled → toggle → active    (redeploy to previous websites)
 active   → hết hạn → expired  (undeploy all)
 ```
 
+### SEO Visibility (trục độc lập với status)
+
+`realPublic` là flag riêng, không trộn vào status machine — một bài `active` (đã deploy) vẫn có thể đang noindex chờ nội dung "chín" rồi mới public:
+
+```
+Mới tạo        → realPublic = false → render <meta robots noindex, nofollow> + KHÔNG vào sitemap
+Toggle Public  → realPublic = true  → redeploy job: re-render <meta robots index, follow> + thêm sitemap entry
+Toggle NoIndex → realPublic = false → redeploy job: re-render noindex + gỡ sitemap entry
+```
+
+- Endpoint: `POST /guest-posts/:id/toggle-public` (admin) — flip flag, tạo `redeploy_guest_post` job nếu có deployment đang deployed, ghi history (`noindex` ↔ `real-public`) + Discord notification
+- Redeploy luôn **đồng bộ** trạng thái sitemap với flag hiện tại (public mà thiếu entry → thêm; noindex mà còn entry → gỡ) nên mọi thao tác hội tụ về đúng trạng thái
+- Undeploy/delete/expired gỡ sitemap entry dựa trên `addedToSitemap` như bình thường
+
 ### Business Rules
 
 - **Sale edit active post** → status chuyển về `pending`, content trên websites giữ nguyên cho đến khi admin approve lại
@@ -290,15 +308,18 @@ Khi job `deploy_guest_post` được xử lý, với mỗi website:
 
 | Step | Action | Detail |
 |------|--------|--------|
-| 1 | Load metadata | Lấy `WebsiteMetadata` cho website. Nếu chưa có hoặc stale → trigger scan trước |
-| 2 | Resolve category | Kiểm tra `guest_post.category` có trong `metadata.navCategories`. Nếu không → fallback `"tong-hop"` |
-| 3 | Generate unique slug | Từ `guest_post.slug`, kiểm tra dir đã tồn tại chưa. Nếu trùng → append suffix `-2`, `-3`... |
-| 4 | Render HTML | Load `metadata.articleTemplate` → replace placeholders: `{title}`, `{content}`, `{metaDescription}`, `{category}`, `{siteName}`, breadcrumb, etc. |
-| 5 | Create directory | `mkdir -p /home/{domain}/public_html/{cat}/{slug}/` |
-| 6 | Write file | SSH write `index.html` vào directory vừa tạo |
-| 7 | Update sitemap | Nếu website có `sitemap.xml`: đọc → thêm `<url>` entry → ghi lại |
-| 8 | Internal links (optional) | Tìm 1-2 bài cùng category → chèn link đến bài mới trong content |
-| 9 | Save deployment | Upsert `GuestPostDeployment` record với status `deployed` |
+| 1 | Load metadata | `getOrScan()` — lấy `WebsiteMetadata`, tự scan nếu chưa có hoặc stale (>7 ngày) |
+| 2 | Resolve category | Kiểm tra `guest_post.category` có trong `metadata.navCategories`. Nếu không → fallback `"tong-hop"` → fallback category đầu tiên |
+| 3 | Resolve path | Nếu đã từng deploy lên website này (record cũ, kể cả `removed`) → **reuse filePath/pagePath cũ** (URL ổn định khi re-enable). Nếu chưa → generate unique slug: check dir tồn tại, append suffix `-2`, `-3`... (tối đa 20 lần) |
+| 4 | Ensure backlink | Nếu content chưa chứa `targetUrl` → append đoạn `<p>Tham khảo thêm: <a ...>` cuối bài |
+| 5 | Render HTML | Load `metadata.articleTemplate` → replace placeholders `{title}`, `{content}`, `{metaDescription}`, `{category}`, `{categoryName}`, `{robotsMeta}` (noindex nếu `!realPublic`). Title/meta được escape HTML |
+| 6 | Preserve internal links | Nếu overwrite file cũ: đọc file hiện tại, extract các block `vs-cms-ilink` mà bài khác đã chèn → re-insert vào render mới trước `</article>` |
+| 7 | Create directory + write | `mkdir -p /home/{domain}/public_html/{cat}/{slug}/` → SSH write `index.html` |
+| 8 | Update sitemap | **Chỉ khi `post.realPublic`** và website có `sitemap.xml`: backup → xóa entry trùng (nếu có) → thêm `<url>` entry trước `</urlset>` |
+| 9 | Internal links | Tìm tối đa 2 bài cùng category + cùng website đang `deployed` → backup source file → chèn block `vs-cms-ilink:{id}` trước `</article>` → track file paths vào `internalLinkSourceFiles` |
+| 10 | Save deployment | Upsert `GuestPostDeployment` record: status `deployed`, category, filePath, pagePath, addedToSitemap, internalLinksCount, internalLinkSourceFiles |
+
+Fail 1 website → mark deployment `failed` với errorMessage, tiếp tục website tiếp theo.
 
 > **CONSTRAINT**: Deploy chỉ TẠO directory/file mới. Không rename, move, hoặc restructure bất kỳ folder nào đã tồn tại trên website.
 
@@ -306,19 +327,20 @@ Khi job `deploy_guest_post` được xử lý, với mỗi website:
 
 | Step | Action | Detail |
 |------|--------|--------|
-| 1 | Delete article file | `rm /home/{domain}/public_html/{cat}/{slug}/index.html` |
+| 1 | Delete article file | `rm -f /home/{domain}/public_html/{cat}/{slug}/index.html` |
 | 2 | Remove empty directory | `rmdir` nếu directory rỗng (chỉ xóa dir slug, KHÔNG xóa dir category) |
-| 3 | Update sitemap | Đọc `sitemap.xml` → xóa entry tương ứng → ghi lại |
-| 4 | Remove internal links | Nếu đã chèn internal links ở bài khác → remove markers |
-| 5 | Update deployment record | Set status = `removed`, removedAt = now |
+| 3 | Update sitemap | Nếu `addedToSitemap`: backup → xóa entry tương ứng → ghi lại |
+| 4 | Remove internal links | Với mỗi file trong `internalLinkSourceFiles`: backup → gỡ block `vs-cms-ilink:{id}` (global regex) → ghi lại |
+| 5 | Update deployment record | Set status = `removed`, removedAt = now, addedToSitemap = false, internalLinksCount = 0, internalLinkSourceFiles = [] |
 
 ### 6.3 Redeploy Flow
 
-Khi content bài viết được update (admin edit active post):
+Khi content được update (admin edit active post) hoặc toggle realPublic:
 
 1. Lấy tất cả deployments có status `deployed`
-2. Với mỗi deployment: re-render template với content mới → overwrite file
-3. Không cần thay đổi sitemap hay internal links (URL giữ nguyên)
+2. Với mỗi deployment: re-render template với content + robots meta hiện tại (`noindex` nếu `!realPublic`) → đọc file cũ để **preserve các ilink blocks** bài khác đã chèn → overwrite file (URL giữ nguyên, dùng category đã lưu trên record)
+3. **Đồng bộ sitemap** với flag `realPublic`: public mà chưa có entry → thêm; noindex mà còn entry → gỡ. Cập nhật `addedToSitemap` tương ứng
+4. Internal links trỏ đến bài này ở các bài khác giữ nguyên (URL không đổi)
 
 ### 6.4 Sitemap Update Logic
 
@@ -332,17 +354,18 @@ Khi content bài viết được update (admin edit active post):
 </url>
 ```
 
-### 6.5 Internal Links Logic
+### 6.5 Internal Links Logic (đã triển khai)
 
-Sau khi deploy bài mới, tùy chọn chèn link từ bài cùng category:
+Sau khi deploy bài mới, hệ thống tự chèn link từ bài cùng category:
 
-- Tìm 1-2 bài cùng category có `<article>` tag
-- Chèn link dạng:
+- Query `GuestPostDeployment`: cùng `websiteId` + cùng `category` + status `deployed` + khác `guestPostId`, sort mới nhất, limit 2
+- Với mỗi bài nguồn: backup file → gỡ marker cũ của post này (idempotent) → chèn trước `</article>` (bỏ qua file không có `</article>`):
   ```html
   <!-- vs-cms-ilink:{guestPostId} --><p>Xem thêm: <a href="/{cat}/{slug}/">{title}</a></p><!-- /vs-cms-ilink:{guestPostId} -->
   ```
-- Vị trí: cuối `<article>` hoặc trước related posts section
-- Undeploy: remove tất cả markers `vs-cms-ilink:{id}` từ các pages khác
+- File paths chèn thành công được lưu vào `internalLinkSourceFiles` trên deployment record của bài mới
+- Undeploy: đọc `internalLinkSourceFiles` → gỡ tất cả markers `vs-cms-ilink:{id}` (global regex) khỏi từng file
+- **Preserve khi overwrite**: mọi chỗ ghi đè một article file (redeploy, re-deploy lại path cũ) đều extract các block `vs-cms-ilink` từ file cũ và re-insert vào bản render mới — tránh mất link của bài khác
 
 ---
 
@@ -358,6 +381,7 @@ Sau khi deploy bài mới, tùy chọn chèn link từ bài cùng category:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title} - {siteName}</title>
   <meta name="description" content="{metaDescription}">
+  {robotsMeta}
   <link rel="icon" href="{faviconUrl}">
   {gscVerificationTag}
   <style>{inlineStyles}</style>
@@ -400,6 +424,9 @@ Sau khi deploy bài mới, tùy chọn chèn link từ bài cùng category:
 | `{inlineStyles}` | WebsiteMetadata.inlineStyles | Minimal default CSS |
 | `{faviconUrl}` | WebsiteMetadata.faviconUrl | "/favicon.ico" |
 | `{gscVerificationTag}` | WebsiteMetadata.gscVerificationKey | Empty (omit tag) |
+| `{robotsMeta}` | Theo `guestPost.realPublic` khi render: `noindex, nofollow` (false) hoặc `index, follow` (true) | Template scan trước khi có placeholder → tự inject vào `<head>` khi render |
+
+> Lưu ý implementation: `{language}`, `{siteName}`, `{headerHtml}`, `{footerHtml}`, `{inlineStyles}`, `{faviconUrl}`, `{gscVerificationTag}` được "bake" vào `articleTemplate` tại thời điểm **scan** (build template). Chỉ `{title}`, `{content}`, `{metaDescription}`, `{category}`, `{categoryName}`, `{robotsMeta}` được replace tại thời điểm **render/deploy**.
 
 ### 7.3 Article CSS
 
@@ -532,7 +559,7 @@ Thêm 5 case mới vào `worker.service.ts` switch block, xử lý tuần tự g
 
 ## 11. Discord Notifications
 
-Thêm webhook riêng: `discord.guestPostWebhookUrl` trong config.
+Webhook riêng: `discord.guestPostWebhookUrl` (env `DISCORD_GUEST_POST_WEBHOOK_URL`). Nếu chưa cấu hình → fallback về webhook chính (`DISCORD_WEBHOOK_URL`).
 
 | Event | Notification | Trigger |
 |-------|-------------|---------|
@@ -540,10 +567,11 @@ Thêm webhook riêng: `discord.guestPostWebhookUrl` trong config.
 | Updated | Guest Post Updated — changed fields diff | `PATCH /guest-posts/:id` |
 | Pending Review | Sale edit active → pending — cần admin approve | PATCH (sale edit active) |
 | Status Change | Status Changed — old → new | Toggle endpoint |
-| Deploy Result | Deployed — success/failed counts per website | Job completion |
+| Deploy Result | Deployed — success/failed counts + article URLs per website | Job completion |
 | Undeploy Result | Undeployed — removed count | Job completion |
 | Expired | Guest Posts Expired — list of expired posts | Cron check |
-| Deleted | Guest Post Deleted — title, target URL | DELETE endpoint |
+| Deleted | Guest Post Deleted — title, category, target URL | DELETE endpoint |
+| SEO Toggle | Status Changed — `noindex` ↔ `real-public` | Toggle-public endpoint |
 
 ---
 
@@ -551,43 +579,38 @@ Thêm webhook riêng: `discord.guestPostWebhookUrl` trong config.
 
 Refine v4 + Ant Design v5. Các pages mới tại `apps/web/src/pages/guest-posts/`.
 
-### 12.1 List Page
+### 12.1 List Page (`list.tsx`)
 
-| Column | Sortable | Filter |
-|--------|----------|--------|
-| Title | Yes | Text search |
-| Target URL | No | — |
-| Category | Yes | Select |
-| Status | Yes | Select (pending/active/disabled/expired) |
-| Websites | No | — |
-| Word Count | Yes | — |
-| Expires | Yes | Date range |
-| Created | Yes | Date range |
-| Actions | — | Toggle, Edit, Delete |
+| Column | Sortable | Filter | Ghi chú |
+|--------|----------|--------|---------|
+| Title | Yes | — | Mobile: hiển thị kèm anchorText |
+| Target URL | No | — | Chỉ hiện ≥ lg |
+| Category | Yes | — | Tag, hiện ≥ md |
+| Status | No | Select (pending/active/disabled/expired) | Tag màu + tooltip |
+| SEO | No | Select (Public/NoIndex) | Tag `Public`/`NoIndex` theo `realPublic` |
+| Sites | No | — | Số requestedWebsiteIds |
+| Words | Yes | — | wordCount |
+| Expires / Created By / Created | Yes | — | Responsive theo breakpoint |
+| Actions | — | — | View, Edit, Toggle (admin, Popconfirm) |
 
-### 12.2 Create / Edit Page
+### 12.2 Create / Edit Page (`create.tsx`, `edit.tsx`, `form-utils.tsx`)
 
-- **Form fields**: title, slug (auto-generate + manual override), category (select), targetUrl, anchorText, rel (select), expiresAt (date picker), websiteIds (multi-select), content (rich text editor / HTML editor)
-- **Content editor**: WYSIWYG với khả năng chèn backlink qua button (auto-wrap anchorText với targetUrl)
-- **Preview panel**: render article template real-time (chọn website → load template → preview)
-- **Word count**: real-time counter
+- **AI panel** (chỉ trang create, chỉ hiện khi server có ANTHROPIC_API_KEY): nhập topic + số từ → gọi `generate-content` → tự điền title/slug/metaDescription/category/content, set `contentSource: 'ai'`
+- **Form fields**: title, slug (auto-generate từ title khi chưa touched + manual override, validate `^[a-z0-9-]+$`), category (AutoComplete với 8 category phổ biến + free text), metaDescription (max 300, showCount), anchorText, targetUrl, rel (select 6 options), expiresAt (date picker), websiteIds (`WebsiteSelector`)
+- **Content editor**: `Input.TextArea` HTML (monospace) + đếm từ realtime + nút "Chèn backlink vào cuối nội dung" (build `<a>` từ anchorText/targetUrl/rel)
+- **Preview**: nút "Preview bài viết" — load `articleTemplate` của website đầu tiên đã chọn, replace placeholders client-side, render trong modal iframe sandbox
+- **Edit**: `initialWebsiteIds` = deployed → requestedWebsiteIds → empty (copy pattern footer link); Alert cảnh báo slug/category chỉ áp dụng cho deploy mới khi đã có deployment
 
-### 12.3 Show Page (Detail)
+### 12.3 Show Page (`show.tsx`)
 
-- Thông tin cơ bản: title, content preview, backlink info, status
-- **Deployments tab**: bảng per-website deployment status (deployed/failed/removed), filePath, category used, dates
-- **History tab**: audit log timeline
-- **Actions**: Deploy (admin), Undeploy (admin), Toggle (admin), Edit, Delete
-- **Approve/Reject** (cho pending posts): quick actions
+- 3 tabs: **Thông tin** (Descriptions + bảng deployments per-website: article URL clickable, status, category, sitemap, deployed at, error), **Nội dung** (iframe sandbox preview content), **Lịch sử** (timeline audit log + pagination)
+- Header actions: Edit, Export CSV, **Go Public / Về NoIndex** (admin, Popconfirm giải thích hậu quả SEO), Approve (pending), Disable/Enable, Delete
+- Tag **SEO** (`Real Public`/`NoIndex`) trong Descriptions
 
-### 12.4 Website Metadata Page
+### 12.4 Website Metadata (section trong Website detail — `websites/show.tsx`)
 
-Page riêng hoặc tab trong Website detail:
-
-- Hiển thị metadata: siteName, language, categories, hasSitemap
-- Preview article template
-- Button "Rescan" để trigger scan lại
-- Last scanned timestamp
+- Section "Guest Post Metadata": siteName, language, categories (tags), hasSitemap, lastScannedAt
+- Buttons: **Rescan** (queue `scan_website_metadata` job cho site này), **Refresh**, **Preview Template** (modal iframe từ `GET /website-metadata/:id/preview`)
 
 ---
 
@@ -764,17 +787,37 @@ findByFooterLink(id, page, limit)      →  findByGuestPost(id, page, limit)
 
 ## 15. Implementation Phases
 
-| Phase | Scope | Dependencies | Deliverables |
-|-------|-------|--------------|-------------|
-| **Phase 1** | Website Metadata | ssh module | `website-metadata` schema + service, scan logic (extract header/footer/CSS/categories), API endpoints (get, scan, preview), job type `scan_website_metadata`, cron job (daily 05:00), initial scan tất cả 128 websites |
-| **Phase 2** | Guest Post CRUD | Phase 1 | `guest-posts` schema + DTO + service, controller (all endpoints), `guest-post-history` module, status flow logic, validation (slug, content sanitize) |
-| **Phase 3** | Deployment Engine | Phase 1 + 2 | `guest-post-deployments` schema + service, template rendering engine, deploy flow (mkdir, write, sitemap), undeploy flow (delete, sitemap), redeploy flow (re-render) |
-| **Phase 4** | Jobs + Worker + Discord | Phase 3 | 5 job handlers trong worker, Discord notifications (separate webhook), cron check expired (02:00), internal linking (optional — có thể defer) |
-| **Phase 5** | Frontend | Phase 4 | List page + filters, create/edit page + content editor, show page + deployments + history, website metadata tab/page, article preview |
-| **Phase 6** | AI Content (Future) | Phase 5 | Content generation abstraction layer, CLI tool (phase 1) hoặc API integration (phase 2), auto-generate metaDescription + suggest category, content quality check |
+| Phase | Scope | Status | Deliverables (as-built) |
+|-------|-------|--------|-------------------------|
+| **Phase 1** | Website Metadata | ✅ Done | `website-metadata` schema + service, scan logic (extract header/footer/CSS/categories/sitemap/GSC/favicon/logo), API endpoints (get, scan, preview), job `scan_website_metadata`, cron 05:00. **Chưa chạy initial scan** — cần trigger sau khi deploy (`POST /website-metadata/scan` hoặc đợi cron) |
+| **Phase 2** | Guest Post CRUD | ✅ Done | `guest-posts` schema + DTOs + service (sanitize XSS, wordCount, slugify) + controller đầy đủ endpoints, `guest-post-history` module, status flow + realPublic flag |
+| **Phase 3** | Deployment Engine | ✅ Done | `guest-post-deployments` schema + service, template rendering, deploy (mkdir/write/sitemap gated theo realPublic), undeploy (delete/rmdir/sitemap/ilink cleanup), redeploy (re-render + preserve ilinks + sync sitemap) |
+| **Phase 4** | Jobs + Worker + Discord | ✅ Done | 5 job handlers trong worker, Discord notifications (webhook riêng, fallback webhook chính), cron 02:00 check expired, **internal linking đã implement** (không defer) |
+| **Phase 5** | Frontend | ✅ Done | List + filters (status/SEO), create/edit + HTML editor + preview per-site, show 3 tabs + CSV export + SEO toggle, website metadata section trong Website detail |
+| **Phase 6** | AI Content | ✅ Done | `content-generation` module — API integration qua `@anthropic-ai/sdk` (không làm CLI), structured JSON output (title/metaDescription/category/content), auto slug + sanitize + word count. Endpoint `generate-content` + `ai-status`, AI panel trong create page |
 
-### Estimation
+### Chưa làm / cân nhắc tương lai
 
-- Phase 1–4 (Backend): ~3-4 ngày
-- Phase 5 (Frontend): ~2 ngày
-- Phase 6 (AI): tách riêng, implement khi cần
+- E2E automation cho guest post (hiện chỉ có manual checklist GP-01→GP-14 trong `E2E_TEST_CASES.md`)
+- `verify_deployments` job chưa cover guest post articles (mới verify text links)
+- Content quality check nâng cao cho AI output (hiện chỉ sanitize + word count)
+- Dashboard stats cho guest posts
+
+---
+
+## 16. Environment Variables
+
+Các biến môi trường mới cho Guest Post (đã khai báo trong `docker-compose.yml` và `.env.example`):
+
+| Biến | Bắt buộc | Default | Mô tả |
+|------|----------|---------|-------|
+| `DISCORD_GUEST_POST_WEBHOOK_URL` | Không | rỗng | Webhook Discord riêng cho guest post. Rỗng → fallback về `DISCORD_WEBHOOK_URL` |
+| `ANTHROPIC_API_KEY` | Không | rỗng | API key cho Phase 6 AI generation. Rỗng → panel AI tự ẩn, endpoint trả 400 với message rõ ràng, mọi tính năng khác hoạt động bình thường |
+| `AI_MODEL` | Không | `claude-opus-4-8` | Model Claude dùng để viết bài |
+
+## Checklist sau khi deploy lần đầu
+
+1. `git pull` + `docker compose up -d --build api web` trên server
+2. Thêm env vars ở trên vào `/opt/vs-cms/.env` (nếu dùng)
+3. Chạy scan metadata toàn bộ websites: `POST /website-metadata/scan` (không body) hoặc đợi cron 05:00
+4. Test theo checklist **GP-01 → GP-14** trong `docs/E2E_TEST_CASES.md`

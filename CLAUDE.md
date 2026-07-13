@@ -125,6 +125,15 @@ Sale edit link pending → stays pending
 - Gỡ link: regex remove marker, nếu div trống thì xóa luôn div
 - Trước khi ghi file, tạo backup `.bak.{timestamp}`
 
+### Guest Post (docs chi tiết: `docs/GUEST_POST_FEATURE.md`)
+- Tạo **file HTML mới** tại `/home/{domain}/public_html/{cat}/{slug}/index.html` (khác text/footer link vốn chèn snippet vào page có sẵn)
+- Render từ `articleTemplate` per-site (build khi scan metadata: header/footer/CSS/favicon của chính site đó)
+- Status flow giống text link (pending/active/disabled/expired) + flag `realPublic` riêng: mặc định **noindex + không vào sitemap**; `POST /guest-posts/:id/toggle-public` bật `index, follow` + thêm sitemap entry (qua redeploy job)
+- Internal links: deploy chèn tối đa 2 link "Xem thêm" từ bài cùng category (marker `<!-- vs-cms-ilink:{id} -->`), track source files, tự gỡ khi undeploy, preserve khi overwrite
+- Category không có trên site → fallback `tong-hop`; slug trùng → append `-2`, `-3`...
+- Undeploy: xóa file + rmdir slug dir nếu rỗng (KHÔNG đụng category dir) + gỡ sitemap + gỡ ilink markers
+- AI generation (Phase 6): `POST /guest-posts/generate-content` — cần `ANTHROPIC_API_KEY`, model config qua `AI_MODEL` (default `claude-opus-4-8`)
+
 ### Job Processing
 Worker (`worker.service.ts`) poll mỗi 3 giây, xử lý **1 job tại 1 thời điểm**.
 
@@ -181,5 +190,5 @@ npm run dev:web     # http://localhost:5173
 
 ## Tests
 
-E2E test script: `docs/e2e-test.sh` (81 tests, 79 pass / 2 fail)
-Test case docs: `docs/E2E_TEST_CASES.md`
+E2E test script: `docs/e2e-test.sh` (81 tests, 79 pass / 2 fail — chỉ cover text link + footer link)
+Test case docs: `docs/E2E_TEST_CASES.md` (kèm manual checklist Guest Post GP-01 → GP-14, chưa automate)
