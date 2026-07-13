@@ -16,6 +16,7 @@ const statusColors: Record<string, string> = {
   running: "processing",
   completed: "success",
   failed: "error",
+  cancelled: "warning",
 };
 
 const typeLabels: Record<string, string> = {
@@ -34,6 +35,7 @@ const statusIcons: Record<string, React.ReactNode> = {
   running: <SyncOutlined spin />,
   completed: <CheckCircleOutlined />,
   failed: <CloseCircleOutlined />,
+  cancelled: <CloseCircleOutlined />,
 };
 
 const levelColors: Record<string, string> = {

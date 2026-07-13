@@ -8,6 +8,7 @@ const statusColors: Record<string, string> = {
   running: "processing",
   completed: "success",
   failed: "error",
+  cancelled: "warning",
 };
 
 const typeLabels: Record<string, string> = {

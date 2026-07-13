@@ -97,6 +97,28 @@ export class JobsService {
     return count > 0;
   }
 
+  // Job đang thực sự chạy (không tính pending) — dùng để chặn xóa khi không thể ngắt
+  async hasRunningJobFor(paramKey: string, entityId: string): Promise<boolean> {
+    const count = await this.jobModel.countDocuments({
+      status: 'running',
+      [`params.${paramKey}`]: entityId,
+    });
+    return count > 0;
+  }
+
+  // Hủy các job PENDING (chưa chạy) của một entity, tùy chọn lọc theo type.
+  // Dùng khi toggle/delete để tránh xếp hàng job mâu thuẫn/dư thừa. Job đang running không đụng tới.
+  async cancelPendingJobsFor(paramKey: string, entityId: string, types?: string[]): Promise<number> {
+    const filter: any = { status: 'pending', [`params.${paramKey}`]: entityId };
+    if (types?.length) filter.type = { $in: types };
+    const result = await this.jobModel.updateMany(filter, {
+      status: 'cancelled',
+      error: 'Superseded (cancelled by a newer action)',
+      completedAt: new Date(),
+    });
+    return result.modifiedCount;
+  }
+
   async resetAllRunning(): Promise<number> {
     const result = await this.jobModel.updateMany(
       { status: 'running' },

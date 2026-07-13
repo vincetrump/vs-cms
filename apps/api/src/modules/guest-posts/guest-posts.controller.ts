@@ -320,9 +320,12 @@ export class GuestPostsController {
       throw new ForbiddenException();
     }
 
-    const hasActiveJobs = await this.jobsService.hasActiveJobsFor('guestPostId', id);
-    if (hasActiveJobs) {
-      throw new BadRequestException('Cannot delete: there are pending/running jobs for this guest post');
+    // Hủy các job còn pending của post (deploy/redeploy... không còn ý nghĩa khi sắp xóa).
+    // Chỉ chặn khi có job đang THỰC SỰ chạy (không thể ngắt giữa chừng) — đợi xong rồi xóa lại.
+    await this.jobsService.cancelPendingJobsFor('guestPostId', id);
+    const hasRunning = await this.jobsService.hasRunningJobFor('guestPostId', id);
+    if (hasRunning) {
+      throw new BadRequestException('Đang có job chạy cho guest post này — đợi job hoàn tất (xem trang Jobs) rồi xóa lại');
     }
 
     await this.historyService.log({
@@ -469,6 +472,10 @@ export class GuestPostsController {
     if (!post) throw new NotFoundException('Guest post not found');
 
     if (post.status === 'active') {
+      // Disable: hủy các job deploy/redeploy/regenerate còn pending (vô nghĩa khi sắp gỡ)
+      await this.jobsService.cancelPendingJobsFor('guestPostId', id, [
+        'deploy_guest_post', 'redeploy_guest_post', 'regenerate_guest_post',
+      ]);
       await this.jobsService.create('undeploy_guest_post', { guestPostId: id });
       const updated = await this.guestPostsService.update(id, { status: 'disabled' });
       await this.historyService.log({
@@ -480,14 +487,15 @@ export class GuestPostsController {
       await this.discordService.sendGuestPostStatusChangeNotification(post, 'active', 'disabled');
       return updated;
     } else if (post.status === 'disabled') {
-      const deployments = await this.guestPostDeploymentsService.findPreviouslyDeployed(id);
+      // Enable: hủy undeploy còn pending (vô nghĩa khi sắp deploy lại)
+      await this.jobsService.cancelPendingJobsFor('guestPostId', id, ['undeploy_guest_post']);
       const updated = await this.guestPostsService.update(id, { status: 'active' });
-      let websiteIds: string[] = [];
-      if (deployments.length) {
-        websiteIds = [...new Set(deployments.map(d => d.websiteId.toString()))];
-      } else {
-        websiteIds = ((post as any).requestedWebsiteIds || []).map(String);
-      }
+      // Gom TẤT CẢ website từng deploy (mọi status) + requestedWebsiteIds — chắc chắn không sót site
+      const allDeployments = await this.guestPostDeploymentsService.findByGuestPost(id);
+      const websiteIds = [...new Set([
+        ...allDeployments.map((d: any) => (d.websiteId?._id || d.websiteId).toString()),
+        ...((post as any).requestedWebsiteIds || []).map(String),
+      ])];
       if (websiteIds.length) {
         await this.jobsService.create('deploy_guest_post', {
           guestPostId: id,
