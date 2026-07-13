@@ -26,8 +26,25 @@ export class GuestPostDeployment {
   @Prop({ type: Date, default: null })
   deployedAt: Date | null;
 
+  // Lần deploy đầu tiên — dùng làm datePublished (SEO), không đổi khi redeploy
+  @Prop({ type: Date, default: null })
+  firstDeployedAt: Date | null;
+
   @Prop({ type: Date, default: null })
   removedAt: Date | null;
+
+  // Nội dung AI sinh riêng cho website này (null = dùng content chung của guest post)
+  @Prop({ type: String, default: null })
+  title: string | null;
+
+  @Prop({ type: String, default: null })
+  content: string | null;
+
+  @Prop({ type: String, default: null })
+  metaDescription: string | null;
+
+  @Prop({ default: 0 })
+  wordCount: number;
 
   @Prop({ type: Date, default: null })
   lastVerifiedAt: Date | null;
@@ -37,6 +54,10 @@ export class GuestPostDeployment {
 
   @Prop({ default: false })
   addedToSitemap: boolean;
+
+  // true = backlink đã bị gỡ khỏi bài (post expired) nhưng bài viết vẫn sống trên site
+  @Prop({ default: false })
+  backlinkRemoved: boolean;
 
   @Prop({ default: 0 })
   internalLinksCount: number;

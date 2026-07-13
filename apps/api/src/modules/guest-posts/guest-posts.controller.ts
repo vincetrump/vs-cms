@@ -18,7 +18,9 @@ import { GuestPostDeploymentsService } from '../guest-post-deployments/guest-pos
 import { DiscordService } from '../discord/discord.service';
 import { JobsService } from '../jobs/jobs.service';
 import { GuestPostHistoryService } from '../guest-post-history/guest-post-history.service';
-import { ContentGenerationService } from '../content-generation/content-generation.service';
+import { ContentGenerationService, SiteContext } from '../content-generation/content-generation.service';
+import { WebsiteMetadataService } from '../website-metadata/website-metadata.service';
+import { WebsitesService } from '../websites/websites.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -37,6 +39,8 @@ export class GuestPostsController {
     private jobsService: JobsService,
     private historyService: GuestPostHistoryService,
     private contentGenerationService: ContentGenerationService,
+    private websiteMetadataService: WebsiteMetadataService,
+    private websitesService: WebsitesService,
   ) {}
 
   private getCreatorId(post: any): string | null {
@@ -80,13 +84,44 @@ export class GuestPostsController {
   }
 
   // Phase 6: AI content generation — trả về draft để fill vào form, chưa lưu DB
+  // Có websiteId → AI đọc metadata site (tên, mô tả, categories) để tự chọn chủ đề phù hợp
   @Post('generate-content')
   async generateContent(@Body() dto: GenerateContentDto) {
+    if (!dto.topic?.trim() && !dto.websiteId) {
+      throw new BadRequestException('Nhập chủ đề hoặc chọn website để AI tự chọn chủ đề theo site');
+    }
+
+    let siteContext: SiteContext | undefined;
+    let siteLanguage: string | undefined;
+    if (dto.websiteId) {
+      try {
+        const website = await this.websitesService.findById(dto.websiteId);
+        if (!website) throw new NotFoundException('Website not found');
+        const metadata = await this.websiteMetadataService.getOrScan(dto.websiteId);
+        siteContext = {
+          domain: website.domain,
+          siteName: metadata.siteName,
+          siteDescription: metadata.siteDescription,
+          categories: metadata.navCategories || [],
+        };
+        siteLanguage = metadata.language;
+      } catch (err: any) {
+        // Không scan được metadata: có topic thì vẫn generate bình thường, không topic thì báo lỗi rõ
+        if (!dto.topic?.trim()) {
+          throw new BadRequestException(
+            `Không đọc được metadata của website (${err.message}) — hãy scan metadata trước hoặc nhập chủ đề thủ công`,
+          );
+        }
+      }
+    }
+
     const article = await this.contentGenerationService.generateArticle({
-      topic: dto.topic,
+      topic: dto.topic?.trim() || undefined,
+      siteContext,
       anchorText: dto.anchorText,
       targetUrl: dto.targetUrl,
-      language: dto.language,
+      rel: dto.rel,
+      language: dto.language || siteLanguage,
       wordCount: dto.wordCount,
     });
 
@@ -105,18 +140,37 @@ export class GuestPostsController {
   @Post()
   async create(@Req() req: any, @Body() dto: CreateGuestPostDto) {
     const isSale = req.user.role === 'sale';
+    const contentSource = dto.contentSource || 'manual';
+
+    // Bài manual phải có title + content; bài AI thì không — nội dung sinh riêng từng site lúc deploy
+    if (contentSource !== 'ai' && (!dto.title?.trim() || !dto.content?.trim())) {
+      throw new BadRequestException('Title và nội dung là bắt buộc với bài viết tự soạn');
+    }
+    if (contentSource === 'ai' && !this.contentGenerationService.isConfigured()) {
+      throw new BadRequestException('ANTHROPIC_API_KEY chưa được cấu hình trên server — không thể tạo bài AI');
+    }
+
+    // Bài AI không có title → dùng chủ đề (hoặc anchor text) làm title tạm hiển thị trong danh sách;
+    // title thật của từng site do AI sinh lúc deploy
+    const title = dto.title?.trim() || dto.aiTopic?.trim() || `AI: ${dto.anchorText}`;
+    const content = dto.content || '';
 
     const post = await this.guestPostsService.create({
-      title: dto.title,
-      slug: dto.slug || this.guestPostsService.slugify(dto.title),
-      content: dto.content,
-      metaDescription: dto.metaDescription,
-      category: dto.category,
+      title,
+      slug: dto.slug || this.guestPostsService.slugify(title),
+      content,
+      metaDescription:
+        dto.metaDescription?.trim() ||
+        (content ? this.guestPostsService.deriveMetaDescription(content, title) : ''),
+      category: dto.category || 'tong-hop',
       anchorText: dto.anchorText,
       targetUrl: dto.targetUrl,
       rel: dto.rel || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       contentSource: dto.contentSource || 'manual',
+      aiTopic: dto.aiTopic?.trim() || null,
+      aiWordCount: dto.aiWordCount || null,
+      hideBacklink: dto.hideBacklink ?? true,
       status: isSale ? 'pending' : 'active',
       source: isSale ? 'sale' : 'admin',
       createdBy: req.user.sub,
@@ -192,11 +246,20 @@ export class GuestPostsController {
     if (dto.rel !== undefined) updateData.rel = dto.rel || null;
     if (dto.expiresAt !== undefined) updateData.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
     if (dto.contentSource) updateData.contentSource = dto.contentSource;
+    if (dto.aiTopic !== undefined) updateData.aiTopic = dto.aiTopic?.trim() || null;
+    if (dto.aiWordCount !== undefined) updateData.aiWordCount = dto.aiWordCount || null;
     if (dto.websiteIds) updateData.requestedWebsiteIds = dto.websiteIds;
 
+    const hideBacklinkChanged = dto.hideBacklink !== undefined && !!dto.hideBacklink !== !!existing.hideBacklink;
+    if (hideBacklinkChanged) {
+      updateData.hideBacklink = !!dto.hideBacklink;
+      changes.hideBacklink = { old: existing.hideBacklink ? 'Ẩn' : 'Hiện', new: dto.hideBacklink ? 'Ẩn' : 'Hiện' };
+    }
+
     const isSale = req.user.role === 'sale';
+    // Đổi trạng thái ẩn/hiện backlink cần re-render article → tính là content change (để redeploy)
     const hasContentChanges = !!(
-      dto.title || dto.content || dto.metaDescription || dto.anchorText || dto.targetUrl || dto.rel !== undefined
+      dto.title || dto.content || dto.metaDescription || dto.anchorText || dto.targetUrl || dto.rel !== undefined || hideBacklinkChanged
     );
 
     if (isSale && existing.status === 'active' && hasContentChanges) {
@@ -206,7 +269,9 @@ export class GuestPostsController {
 
     const updated = await this.guestPostsService.update(id, updateData);
 
-    if (req.user.role === 'admin' && dto.websiteIds) {
+    // Chỉ đụng đến websites khi post đang ACTIVE — edit post disabled/expired/pending
+    // không được tự ý deploy/redeploy (expired sẽ khôi phục backlink sai, disabled sẽ tự bật lại)
+    if (req.user.role === 'admin' && existing.status === 'active' && dto.websiteIds) {
       const currentDeployments = await this.guestPostDeploymentsService.findDeployed(id);
       const currentWebsiteIds = [...new Set(currentDeployments.map(d => d.websiteId.toString()))];
       const targetIds = new Set(dto.websiteIds);
@@ -224,7 +289,7 @@ export class GuestPostsController {
       if (toAdd.length) {
         await this.jobsService.create('deploy_guest_post', { guestPostId: id, websiteIds: toAdd });
       }
-    } else if (req.user.role === 'admin' && hasContentChanges) {
+    } else if (req.user.role === 'admin' && existing.status === 'active' && hasContentChanges) {
       await this.jobsService.create('redeploy_guest_post', { guestPostId: id });
     }
 
@@ -269,9 +334,9 @@ export class GuestPostsController {
 
     await this.discordService.sendGuestPostDeleteNotification(post);
 
-    if (req.user.role === 'admin') {
-      await this.jobsService.create('undeploy_guest_post', { guestPostId: id });
-    }
+    // Luôn undeploy trước khi xóa — kể cả sale xóa bài của chính mình,
+    // nếu không bài viết + backlink sẽ mồ côi vĩnh viễn trên websites
+    await this.jobsService.create('undeploy_guest_post', { guestPostId: id });
     await this.guestPostsService.delete(id);
     return { success: true };
   }
@@ -327,6 +392,40 @@ export class GuestPostsController {
     return { jobId: job._id, message: 'Undeploy job queued' };
   }
 
+  // Regenerate: viết lại bài AI MỚI cho 1 (hoặc nhiều) website, GIỮ NGUYÊN URL cũ.
+  // Chỉ áp dụng cho post AI; post manual không có gì để regenerate.
+  @Post(':id/regenerate')
+  @Roles('admin')
+  async regenerate(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body('websiteIds') websiteIds: string[],
+  ) {
+    if (!websiteIds?.length) throw new BadRequestException('websiteIds required');
+    const post = await this.guestPostsService.findById(id);
+    if (!post) throw new NotFoundException('Guest post not found');
+    if (post.contentSource !== 'ai') {
+      throw new BadRequestException('Chỉ bài AI mới generate lại được — bài tự soạn hãy dùng Edit');
+    }
+    if (!this.contentGenerationService.isConfigured()) {
+      throw new BadRequestException('ANTHROPIC_API_KEY chưa được cấu hình trên server');
+    }
+
+    const job = await this.jobsService.create('regenerate_guest_post', {
+      guestPostId: id,
+      websiteIds,
+    });
+
+    await this.historyService.log({
+      guestPostId: id,
+      action: 'regenerated',
+      performedBy: req.user.sub,
+      metadata: { websiteIds, jobId: job._id.toString() },
+    });
+
+    return { jobId: job._id, message: 'Regenerate job queued' };
+  }
+
   // Toggle real-public: bật = cho bot index + đưa vào sitemap, tắt = noindex + gỡ khỏi sitemap.
   // Tạo redeploy job để re-render meta robots và đồng bộ sitemap trên các websites đã deploy.
   @Post(':id/toggle-public')
@@ -334,6 +433,9 @@ export class GuestPostsController {
   async togglePublic(@Req() req: any, @Param('id') id: string) {
     const post = await this.guestPostsService.findById(id);
     if (!post) throw new NotFoundException('Guest post not found');
+    if (post.status === 'expired') {
+      throw new BadRequestException('Post đã hết hạn — kích hoạt lại (toggle) trước khi đổi chế độ SEO');
+    }
 
     const newValue = !post.realPublic;
     const updated = await this.guestPostsService.update(id, { realPublic: newValue });
@@ -429,6 +531,26 @@ export class GuestPostsController {
         changes: { status: { old: 'pending', new: 'active' } },
       });
       await this.discordService.sendGuestPostStatusChangeNotification(post, 'pending', 'active');
+      return updated;
+    } else if (post.status === 'expired') {
+      // Expired chỉ gỡ backlink, bài vẫn sống trên site → re-activate = redeploy để chèn lại backlink.
+      // Chỉ xóa expiresAt khi nó đã qua (tránh expire lại ngay đêm nay); hạn TƯƠNG LAI admin vừa đặt thì giữ.
+      const expiryPassed = !post.expiresAt || new Date(post.expiresAt) <= new Date();
+      const updated = await this.guestPostsService.update(
+        id,
+        expiryPassed ? { status: 'active', expiresAt: null } : { status: 'active' },
+      );
+      const deployedCount = await this.guestPostDeploymentsService.countDeployed(id);
+      if (deployedCount > 0) {
+        await this.jobsService.create('redeploy_guest_post', { guestPostId: id });
+      }
+      await this.historyService.log({
+        guestPostId: id,
+        action: 'status_changed',
+        performedBy: req.user.sub,
+        changes: { status: { old: 'expired', new: 'active' } },
+      });
+      await this.discordService.sendGuestPostStatusChangeNotification(post, 'expired', 'active');
       return updated;
     }
 

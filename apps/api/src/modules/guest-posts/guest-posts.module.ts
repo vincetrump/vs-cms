@@ -8,6 +8,8 @@ import { DiscordModule } from '../discord/discord.module';
 import { JobsModule } from '../jobs/jobs.module';
 import { GuestPostHistoryModule } from '../guest-post-history/guest-post-history.module';
 import { ContentGenerationModule } from '../content-generation/content-generation.module';
+import { WebsiteMetadataModule } from '../website-metadata/website-metadata.module';
+import { WebsitesModule } from '../websites/websites.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { ContentGenerationModule } from '../content-generation/content-generatio
     DiscordModule,
     GuestPostHistoryModule,
     ContentGenerationModule,
+    forwardRef(() => WebsiteMetadataModule),
+    forwardRef(() => WebsitesModule),
   ],
   providers: [GuestPostsService],
   controllers: [GuestPostsController],

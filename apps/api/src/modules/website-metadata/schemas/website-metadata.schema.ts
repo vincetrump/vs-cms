@@ -29,6 +29,18 @@ export class WebsiteMetadata {
   @Prop({ default: '' })
   inlineStyles: string;
 
+  // Thẻ <link rel="stylesheet"> của homepage (nhiều site không dùng inline style) — nhúng vào article template
+  @Prop({ type: [String], default: [] })
+  stylesheetLinks: string[];
+
+  // Nguồn build template: 'detail-page' (khung từ trang bài viết thật của site — chuẩn nhất)
+  // hoặc 'homepage' (dựng lại từ header/footer homepage — fallback)
+  @Prop({ default: 'homepage' })
+  templateSource: string;
+
+  @Prop({ type: String, default: null })
+  templateSamplePath: string | null;
+
   @Prop({ type: Object, default: {} })
   cssVariables: Record<string, string>;
 

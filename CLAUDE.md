@@ -127,17 +127,21 @@ Sale edit link pending → stays pending
 
 ### Guest Post (docs chi tiết: `docs/GUEST_POST_FEATURE.md`)
 - Tạo **file HTML mới** tại `/home/{domain}/public_html/{cat}/{slug}/index.html` (khác text/footer link vốn chèn snippet vào page có sẵn)
-- Render từ `articleTemplate` per-site (build khi scan metadata: header/footer/CSS/favicon của chính site đó)
+- Render từ `articleTemplate` per-site, build khi scan metadata theo 2 chiến lược: **ưu tiên lấy 1 trang detail thật của site làm khung** (`templateSource='detail-page'` — giữ nguyên 100% head/CSS/header/footer, chỉ thay title/meta/content bằng placeholder, sample path lưu ở `templateSamplePath`); site không có trang detail → fallback dựng từ header/footer homepage (`templateSource='homepage'`). Header/footer đều được strip marker VS-CMS + external links trước khi vào template
+- SEO tags khi render: canonical, Open Graph, twitter:card, JSON-LD Article (datePublished = `firstDeployedAt`), ngày đăng hiển thị dưới h1 — template cũ được inject backward-compat lúc render
 - Status flow giống text link (pending/active/disabled/expired) + flag `realPublic` riêng: mặc định **noindex + không vào sitemap**; `POST /guest-posts/:id/toggle-public` bật `index, follow` + thêm sitemap entry (qua redeploy job)
+- Backlink trong bài được bọc marker theo format footer link: `<!-- vs-cms-gplink:{postId} --><a ...>anchor</a><!-- /vs-cms-gplink:{postId} -->` (bọc lúc render qua `ensureBacklink()`, idempotent)
+- **Expire = gỡ riêng backlink, GIỮ bài viết** (`removeBacklinkFromDeployedFiles`): đoạn "Tham khảo thêm" tự thêm → xóa cả đoạn; link trong câu → unlink giữ anchor text; deployment flag `backlinkRemoved=true`, bài + sitemap + internal links giữ nguyên. Re-activate expired (toggle) → redeploy chèn lại backlink + xóa expiresAt cũ
 - Internal links: deploy chèn tối đa 2 link "Xem thêm" từ bài cùng category (marker `<!-- vs-cms-ilink:{id} -->`), track source files, tự gỡ khi undeploy, preserve khi overwrite
 - Category không có trên site → fallback `tong-hop`; slug trùng → append `-2`, `-3`...
-- Undeploy: xóa file + rmdir slug dir nếu rỗng (KHÔNG đụng category dir) + gỡ sitemap + gỡ ilink markers
-- AI generation (Phase 6): `POST /guest-posts/generate-content` — cần `ANTHROPIC_API_KEY`, model config qua `AI_MODEL` (default `claude-opus-4-8`)
+- Undeploy (disable/delete): xóa file + rmdir slug dir nếu rỗng (KHÔNG đụng category dir) + gỡ sitemap + gỡ ilink markers
+- AI generation (Phase 6): `POST /guest-posts/generate-content` — cần `ANTHROPIC_API_KEY`, model config qua `AI_MODEL` (default `claude-opus-4-8`); có `websiteId` → AI đọc metadata site và tự chọn chủ đề/category theo site
+- **Per-site AI generation khi deploy**: post có `contentSource='ai'` → `deployToWebsites()` generate MỘT BÀI RIÊNG cho từng website (chống duplicate content; tham số lưu ở `aiTopic`/`aiWordCount`, content riêng lưu trên deployment record kèm marker gplink). Redeploy/toggle-public KHÔNG regenerate — dùng content per-site đã lưu; muốn bài mới: undeploy → deploy lại. UI create là 100% AI, KHÔNG có bước generate nháp và KHÔNG có chế độ tự viết: chỉ nhập anchor + URL + websites (+ chủ đề/số từ tùy chọn) rồi Save — title/content master để trống (backend đặt title tạm từ aiTopic/anchor), toàn bộ bài sinh lúc deploy. Bài manual chỉ còn tạo được qua API; edit page vẫn sửa được content bài manual cũ. `POST /guest-posts/generate-content` vẫn tồn tại nhưng UI không dùng
 
 ### Job Processing
 Worker (`worker.service.ts`) poll mỗi 3 giây, xử lý **1 job tại 1 thời điểm**.
 
-Job types: `deploy_links`, `undeploy_links`, `undeploy_all`, `redeploy_link`, `sync_link_websites`, `verify_deployments`, `check_expired`, `deploy_footer_links`, `undeploy_footer_links`, `redeploy_footer_link`, `scan_website_pages`, `check_expired_footer_links`, `deploy_guest_post`, `undeploy_guest_post`, `redeploy_guest_post`, `scan_website_metadata`, `check_expired_guest_posts`
+Job types: `deploy_links`, `undeploy_links`, `undeploy_all`, `redeploy_link`, `sync_link_websites`, `verify_deployments`, `check_expired`, `deploy_footer_links`, `undeploy_footer_links`, `redeploy_footer_link`, `scan_website_pages`, `check_expired_footer_links`, `deploy_guest_post`, `undeploy_guest_post`, `redeploy_guest_post`, `regenerate_guest_post`, `scan_website_metadata`, `check_expired_guest_posts`
 
 ### Auth
 Login 2 bước: POST `/auth/login` (password → partialToken) → POST `/auth/verify-totp` (TOTP → accessToken)
@@ -154,7 +158,7 @@ HMAC-SHA256: `createHmac('sha256', secret).update(body + timestamp)`. Timestamp 
 | `websites` | Website CRUD |
 | `text-links` | Text link CRUD + toggle/deploy/undeploy |
 | `link-deployments` | SSH insert/remove link trên website, tracking |
-| `jobs` | Job queue + worker (single-threaded) |
+| `jobs` | Job queue + worker (single-threaded). `JobConsoleLogger` (custom Nest logger, đăng ký ở main.ts) capture toàn bộ Logger output của mọi service trong lúc job chạy → gom vào `job.logs` (batch flush 800ms) để trang Show Job hiển thị full console. Regenerate per-site: `regenerate_guest_post` = deployToWebsites cho site đó (bài AI viết lại, giữ URL) |
 | `ssh` | SSH wrapper (ssh2 library) |
 | `cloudflare` | Cloudflare zones API |
 | `sync` | Sync websites + verify deployments |

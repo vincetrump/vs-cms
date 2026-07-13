@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useShow, useNavigation, useGetIdentity } from "@refinedev/core";
 import { Show } from "@refinedev/antd";
 import { Descriptions, Tag, Table, Typography, Button, Space, Popconfirm, message, Grid, Tooltip, Tabs, Timeline, Pagination } from "antd";
-import { EditOutlined, InfoCircleOutlined, HistoryOutlined, DownloadOutlined, EyeOutlined } from "@ant-design/icons";
+import { EditOutlined, InfoCircleOutlined, HistoryOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { Title, Text } = Typography;
@@ -156,6 +156,32 @@ export const GuestPostShow = () => {
     }
   };
 
+  // Generate lại bài AI mới cho 1 website, giữ nguyên URL
+  const handleRegenerateSite = async (websiteId: string, domain: string) => {
+    if (!record) return;
+    try {
+      await axiosInstance.post(`${API_URL}/guest-posts/${record._id}/regenerate`, { websiteIds: [websiteId] });
+      message.success(`Đã tạo job viết lại bài cho ${domain} (~1-3 phút) — theo dõi ở trang Jobs`);
+      query.refetch();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      message.error(Array.isArray(msg) ? msg.join(", ") : msg || "Không tạo được job regenerate");
+    }
+  };
+
+  // Gỡ bài khỏi 1 website
+  const handleUndeploySite = async (websiteId: string, domain: string) => {
+    if (!record) return;
+    try {
+      await axiosInstance.post(`${API_URL}/guest-posts/${record._id}/undeploy`, { websiteIds: [websiteId] });
+      message.success(`Đã tạo job gỡ bài khỏi ${domain} — theo dõi ở trang Jobs`);
+      query.refetch();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      message.error(Array.isArray(msg) ? msg.join(", ") : msg || "Không tạo được job undeploy");
+    }
+  };
+
   const statusColors: Record<string, string> = {
     active: "green",
     pending: "gold",
@@ -174,7 +200,7 @@ export const GuestPostShow = () => {
     active: "Bài viết đang hoạt động và đã được deploy trên các websites.",
     pending: "Bài viết đang chờ admin duyệt.",
     disabled: "Bài viết đã bị tắt và đã được gỡ khỏi tất cả websites.",
-    expired: "Bài viết đã hết hạn và tự động được gỡ khỏi websites bởi hệ thống.",
+    expired: "Bài viết đã hết hạn — backlink đã được gỡ khỏi bài, bài viết vẫn còn trên websites. Enable lại để khôi phục backlink.",
   };
 
   const deployments = record?.deployments || [];
@@ -242,6 +268,11 @@ export const GuestPostShow = () => {
             <Descriptions.Item label="Rel">
               {record?.rel ? <Tag>{record.rel}</Tag> : <Tag color="default">not set</Tag>}
             </Descriptions.Item>
+            <Descriptions.Item label="Backlink">
+              <Tooltip title={record?.hideBacklink ? "Backlink được chèn nhưng ẩn bằng display:none" : "Backlink hiển thị bình thường"}>
+                <Tag color={record?.hideBacklink ? "orange" : "green"}>{record?.hideBacklink ? "Đang ẩn (display:none)" : "Hiện"}</Tag>
+              </Tooltip>
+            </Descriptions.Item>
             <Descriptions.Item label="Expires">
               {record?.expiresAt ? new Date(record.expiresAt).toLocaleString() : "Never"}
             </Descriptions.Item>
@@ -263,7 +294,7 @@ export const GuestPostShow = () => {
                 rowKey="_id"
                 size="small"
                 pagination={false}
-                scroll={{ x: 500 }}
+                scroll={{ x: 700 }}
               >
                 <Table.Column
                   title="Website"
@@ -281,14 +312,37 @@ export const GuestPostShow = () => {
                     ) : v;
                   }}
                 />
+                {screens.sm && (
+                  <Table.Column
+                    title="Bài viết (AI per site)"
+                    dataIndex="title"
+                    ellipsis
+                    render={(v: string, d: any) =>
+                      v ? (
+                        <Tooltip title={`${v}${d.wordCount ? ` — ${d.wordCount} từ` : ""}`}>
+                          <span>{v}</span>
+                        </Tooltip>
+                      ) : (
+                        <Typography.Text type="secondary">(dùng content chung)</Typography.Text>
+                      )
+                    }
+                  />
+                )}
                 <Table.Column
                   dataIndex="status"
                   title="Status"
-                  width={90}
-                  render={(s: string) => (
-                    <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>
-                      {s === "deployed" ? "Đã deploy" : s === "failed" ? "Lỗi" : s === "removed" ? "Đã gỡ" : s}
-                    </Tag>
+                  width={120}
+                  render={(s: string, d: any) => (
+                    <>
+                      <Tag color={s === "deployed" ? "green" : s === "failed" ? "red" : "default"}>
+                        {s === "deployed" ? "Đã deploy" : s === "failed" ? "Lỗi" : s === "removed" ? "Đã gỡ" : s}
+                      </Tag>
+                      {d.backlinkRemoved && s === "deployed" && (
+                        <Tooltip title="Post hết hạn — backlink đã gỡ khỏi bài, bài viết vẫn sống trên site">
+                          <Tag color="orange">Link đã gỡ</Tag>
+                        </Tooltip>
+                      )}
+                    </>
                   )}
                 />
                 {screens.sm && (
@@ -322,6 +376,46 @@ export const GuestPostShow = () => {
                     render={(v) => v || "-"}
                   />
                 )}
+                <Table.Column
+                  title="Thao tác"
+                  key="actions"
+                  fixed="right"
+                  width={record?.contentSource === "ai" ? 150 : 90}
+                  render={(_: any, d: any) => {
+                    const wid = typeof d.websiteId === "object" ? d.websiteId?._id : d.websiteId;
+                    const domain = typeof d.websiteId === "object" ? d.websiteId?.domain : wid;
+                    const isDeployed = d.status === "deployed";
+                    return (
+                      <Space size="small">
+                        {record?.contentSource === "ai" && (
+                          <Popconfirm
+                            title="Viết lại bài cho website này?"
+                            description="AI sẽ viết một bài MỚI thay thế bài hiện tại (giữ nguyên URL). Nội dung cũ sẽ mất."
+                            onConfirm={() => handleRegenerateSite(wid, domain)}
+                            okText="Viết lại"
+                            disabled={!isDeployed}
+                          >
+                            <Tooltip title={isDeployed ? "Generate lại bài AI cho site này" : "Chỉ regenerate được bài đang deploy"}>
+                              <Button size="small" icon={<ReloadOutlined />} disabled={!isDeployed} />
+                            </Tooltip>
+                          </Popconfirm>
+                        )}
+                        <Popconfirm
+                          title="Gỡ bài khỏi website này?"
+                          description="File bài viết sẽ bị xóa khỏi website (các website khác giữ nguyên)."
+                          onConfirm={() => handleUndeploySite(wid, domain)}
+                          okText="Gỡ"
+                          okButtonProps={{ danger: true }}
+                          disabled={!isDeployed}
+                        >
+                          <Tooltip title={isDeployed ? "Gỡ bài khỏi site này" : "Bài đã được gỡ"}>
+                            <Button size="small" danger icon={<DeleteOutlined />} disabled={!isDeployed} />
+                          </Tooltip>
+                        </Popconfirm>
+                      </Space>
+                    );
+                  }}
+                />
               </Table>
             </>
           )}
@@ -338,7 +432,13 @@ export const GuestPostShow = () => {
           sandbox=""
           style={{ width: "100%", height: "60vh", border: "1px solid #eee", borderRadius: 4, background: "#fff" }}
         />
-      ) : <Text type="secondary">Chưa có nội dung</Text>,
+      ) : (
+        <Text type="secondary">
+          {record?.contentSource === "ai"
+            ? "Bài AI — nội dung được sinh riêng cho từng website lúc deploy. Xem bài của từng site qua cột Article URL / \"Bài viết (AI per site)\" ở tab Thông tin."
+            : "Chưa có nội dung"}
+        </Text>
+      ),
     },
     {
       key: "history",
@@ -401,6 +501,15 @@ export const GuestPostShow = () => {
               onConfirm={handleToggle}
             >
               <Button>Enable</Button>
+            </Popconfirm>
+          )}
+          {isAdmin && record?.status === "expired" && (
+            <Popconfirm
+              title="Kích hoạt lại guest post đã hết hạn?"
+              description="Backlink sẽ được chèn lại vào bài trên các websites (bài viết vẫn còn trên site). Ngày hết hạn cũ sẽ bị xóa — đặt hạn mới ở trang Edit nếu cần."
+              onConfirm={handleToggle}
+            >
+              <Button>Kích hoạt lại</Button>
             </Popconfirm>
           )}
           <Popconfirm

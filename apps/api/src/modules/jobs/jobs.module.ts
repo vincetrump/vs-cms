@@ -18,6 +18,7 @@ import { GuestPostsModule } from '../guest-posts/guest-posts.module';
 import { GuestPostDeploymentsModule } from '../guest-post-deployments/guest-post-deployments.module';
 import { GuestPostHistoryModule } from '../guest-post-history/guest-post-history.module';
 import { WebsiteMetadataModule } from '../website-metadata/website-metadata.module';
+import { JobConsoleLogger } from '../../common/logging/job-console.logger';
 
 @Module({
   imports: [
@@ -37,8 +38,8 @@ import { WebsiteMetadataModule } from '../website-metadata/website-metadata.modu
     GuestPostHistoryModule,
     WebsitePagesModule,
   ],
-  providers: [JobsService, WorkerService],
+  providers: [JobsService, WorkerService, JobConsoleLogger],
   controllers: [JobsController],
-  exports: [JobsService],
+  exports: [JobsService, JobConsoleLogger],
 })
 export class JobsModule {}

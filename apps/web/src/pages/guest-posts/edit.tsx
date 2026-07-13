@@ -1,9 +1,9 @@
 import { Edit, useForm } from "@refinedev/antd";
 import { useGetIdentity } from "@refinedev/core";
-import { Form, Input, DatePicker, Select, Row, Col, Grid, Alert, Space } from "antd";
+import { Form, Input, InputNumber, DatePicker, Select, Row, Col, Grid, Alert, Space, Switch } from "antd";
 import dayjs from "dayjs";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
-import { ContentEditor, PreviewButton, CategoryInput, REL_OPTIONS } from "./form-utils";
+import { ContentEditor, PreviewButton, REL_OPTIONS } from "./form-utils";
 
 const { useBreakpoint } = Grid;
 
@@ -32,7 +32,7 @@ export const GuestPostEdit = () => {
       headerButtons={({ defaultButtons }) => (
         <Space>
           {defaultButtons}
-          {form && <PreviewButton form={form} />}
+          {form && record?.contentSource !== "ai" && <PreviewButton form={form} />}
         </Space>
       )}
     >
@@ -46,52 +46,31 @@ export const GuestPostEdit = () => {
       )}
       {record?.deployments?.some((d: any) => d.status === "deployed") && (
         <Alert
-          message="Bài viết đã deploy — thay đổi slug/category chỉ áp dụng cho lần deploy tới website mới; URL trên các websites đã deploy giữ nguyên."
+          message={
+            record?.contentSource === "ai"
+              ? "Bài AI per-site: sửa Title/Content ở đây KHÔNG cập nhật các bài đã deploy (mỗi site có bài riêng do AI viết). Anchor Text / Target URL / Rel sẽ được cập nhật vào backlink trên mọi site qua redeploy. URL bài giữ nguyên."
+              : "Bài viết đã deploy — sửa nội dung sẽ cập nhật qua redeploy; URL bài trên các websites đã deploy giữ nguyên."
+          }
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
         />
       )}
       <Form {...formProps} layout="vertical">
+        {/* Slug/category/meta ẩn — quản lý tự động, giữ nguyên giá trị khi update */}
+        <Form.Item name="slug" hidden>
+          <Input />
+        </Form.Item>
+        <Form.Item name="category" hidden>
+          <Input />
+        </Form.Item>
+        <Form.Item name="metaDescription" hidden>
+          <Input />
+        </Form.Item>
         <Row gutter={16}>
           <Col span={span}>
             <Form.Item label="Title" name="title" rules={[{ required: true }]} tooltip="Tiêu đề bài viết">
               <Input />
-            </Form.Item>
-          </Col>
-          <Col span={span}>
-            <Form.Item
-              label="Slug"
-              name="slug"
-              rules={[
-                { required: true, message: "Vui lòng nhập slug" },
-                { pattern: /^[a-z0-9-]+$/, message: "Chỉ chấp nhận chữ thường, số và dấu gạch ngang" },
-              ]}
-              tooltip="URL slug — chỉ áp dụng cho website deploy mới"
-            >
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={span}>
-            <Form.Item
-              label="Category"
-              name="category"
-              rules={[
-                { required: true, message: "Vui lòng chọn category" },
-                { pattern: /^[a-z0-9-]+$/, message: "Chỉ chấp nhận chữ thường, số và dấu gạch ngang" },
-              ]}
-              tooltip="Category trên website — fallback về tong-hop nếu site không có"
-            >
-              <CategoryInput />
-            </Form.Item>
-          </Col>
-          <Col span={span}>
-            <Form.Item
-              label="Meta Description"
-              name="metaDescription"
-              rules={[{ required: true, message: "Vui lòng nhập meta description" }, { max: 300 }]}
-            >
-              <Input.TextArea rows={2} maxLength={300} showCount />
             </Form.Item>
           </Col>
           <Col span={span}>
@@ -118,8 +97,39 @@ export const GuestPostEdit = () => {
               <DatePicker style={{ width: "100%" }} />
             </Form.Item>
           </Col>
+          <Col span={span}>
+            <Form.Item
+              label="Ẩn backlink"
+              name="hideBacklink"
+              valuePropName="checked"
+              tooltip="Bật: backlink vẫn được chèn vào bài nhưng ẩn bằng CSS display:none. Đổi trạng thái này sẽ redeploy để cập nhật các bài đã deploy."
+            >
+              <Switch checkedChildren="Ẩn" unCheckedChildren="Hiện" />
+            </Form.Item>
+          </Col>
         </Row>
-        {form && <ContentEditor form={form} />}
+        {record?.contentSource === "ai" ? (
+          // Bài AI per-site: không sửa content ở đây (mỗi site có bài riêng) —
+          // chỉ chỉnh tham số generate cho các lần deploy tới website mới
+          <Row gutter={16}>
+            <Col span={span}>
+              <Form.Item
+                label="Chủ đề AI (tùy chọn)"
+                name="aiTopic"
+                tooltip="Áp dụng cho lần deploy tới website MỚI; bài đã deploy giữ nguyên. Bỏ trống = AI tự chọn theo từng site."
+              >
+                <Input placeholder="Bỏ trống để AI tự chọn chủ đề theo từng website" />
+              </Form.Item>
+            </Col>
+            <Col span={span}>
+              <Form.Item label="Độ dài bài viết" name="aiWordCount" tooltip="Áp dụng cho lần deploy tới website mới">
+                <InputNumber min={300} max={2000} step={100} addonAfter="từ" style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
+        ) : (
+          form && <ContentEditor form={form} />
+        )}
         <Form.Item label={isAdmin ? "Deploy to Websites" : "Websites để deploy (sau khi admin duyệt)"} name="websiteIds" initialValue={initialWebsiteIds}>
           <WebsiteSelector />
         </Form.Item>

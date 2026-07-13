@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Form, Input, Button, AutoComplete, Modal, Space, Typography, message, Card, InputNumber, Row, Col, Grid } from "antd";
-import { LinkOutlined, EyeOutlined, RobotOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Form, Input, Button, AutoComplete, Modal, Space, Typography, message } from "antd";
+import { LinkOutlined, EyeOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { Text } = Typography;
@@ -164,98 +164,20 @@ export const PreviewButton = ({ form }: { form: any }) => {
   );
 };
 
-// Phase 6: AI content generation panel — điền form từ topic + backlink info
-export const AiGeneratePanel = ({ form }: { form: any }) => {
-  const [topic, setTopic] = useState("");
-  const [wordCount, setWordCount] = useState<number>(800);
-  const [loading, setLoading] = useState(false);
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const screens = Grid.useBreakpoint();
-
-  useEffect(() => {
-    axiosInstance
+// Cache trạng thái cấu hình AI (ANTHROPIC_API_KEY) — dùng cho trang create quyết định chế độ AI/manual.
+// Chỉ cache kết quả thành công; request lỗi (mạng chập chờn) sẽ được thử lại lần sau.
+let aiConfiguredPromise: Promise<boolean> | null = null;
+export const fetchAiConfigured = (): Promise<boolean> => {
+  if (!aiConfiguredPromise) {
+    aiConfiguredPromise = axiosInstance
       .get(`${API_URL}/guest-posts/ai-status`)
-      .then((res) => setConfigured(!!res.data?.configured))
-      .catch(() => setConfigured(false));
-  }, []);
-
-  if (configured === false || configured === null) return null;
-
-  const handleGenerate = async () => {
-    const anchorText = form.getFieldValue("anchorText");
-    const targetUrl = form.getFieldValue("targetUrl");
-    if (!topic.trim()) {
-      message.warning("Nhập chủ đề bài viết trước");
-      return;
-    }
-    if (!anchorText || !targetUrl) {
-      message.warning("Nhập Anchor Text và Target URL trước khi generate (backlink sẽ được chèn tự nhiên vào bài)");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data } = await axiosInstance.post(`${API_URL}/guest-posts/generate-content`, {
-        topic: topic.trim(),
-        anchorText,
-        targetUrl,
-        wordCount,
+      .then((res) => !!res.data?.configured)
+      .catch(() => {
+        aiConfiguredPromise = null;
+        return false;
       });
-      form.setFieldsValue({
-        title: data.title,
-        slug: data.slug,
-        metaDescription: data.metaDescription,
-        category: data.category,
-        content: data.content,
-        contentSource: "ai",
-      });
-      message.success(`Đã tạo bài viết "${data.title}" (${data.wordCount} từ) — kiểm tra lại nội dung trước khi lưu`);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
-      message.error(Array.isArray(msg) ? msg.join(", ") : msg || "AI generation failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Card
-      size="small"
-      title={<Space><RobotOutlined /> Tạo nội dung bằng AI</Space>}
-      style={{ marginBottom: 16 }}
-    >
-      <Row gutter={8}>
-        <Col span={screens.md ? 14 : 24}>
-          <Input
-            placeholder="Chủ đề bài viết, e.g. 5 cách chăm sóc sức khỏe mùa hè"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            onPressEnter={handleGenerate}
-            disabled={loading}
-          />
-        </Col>
-        <Col span={screens.md ? 5 : 12} style={{ marginTop: screens.md ? 0 : 8 }}>
-          <InputNumber
-            min={300}
-            max={2000}
-            step={100}
-            value={wordCount}
-            onChange={(v) => setWordCount(v || 800)}
-            addonAfter="từ"
-            style={{ width: "100%" }}
-            disabled={loading}
-          />
-        </Col>
-        <Col span={screens.md ? 5 : 12} style={{ marginTop: screens.md ? 0 : 8 }}>
-          <Button type="primary" ghost block loading={loading} onClick={handleGenerate}>
-            {loading ? "Đang viết..." : "Generate"}
-          </Button>
-        </Col>
-      </Row>
-      <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 8 }}>
-        Nhập Anchor Text + Target URL bên dưới trước — AI sẽ chèn backlink tự nhiên vào bài. Quá trình có thể mất 1-3 phút.
-      </Typography.Text>
-    </Card>
-  );
+  }
+  return aiConfiguredPromise;
 };
 
 export const CategoryInput = () => (

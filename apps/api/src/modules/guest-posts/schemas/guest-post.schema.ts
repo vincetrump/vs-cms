@@ -11,10 +11,11 @@ export class GuestPost {
   @Prop({ required: true })
   slug: string;
 
-  @Prop({ required: true })
+  // Có thể rỗng với bài AI — nội dung thật sinh riêng cho từng website lúc deploy
+  @Prop({ default: '' })
   content: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   metaDescription: string;
 
   @Prop({ required: true })
@@ -36,6 +37,11 @@ export class GuestPost {
   @Prop({ default: false })
   realPublic: boolean;
 
+  // true = backlink vẫn được chèn nhưng bọc style="display:none" (ẩn tạm, ví dụ khi lên prod)
+  // Mặc định ẩn — bật hiện khi bài đã ổn định trên prod
+  @Prop({ default: true })
+  hideBacklink: boolean;
+
   @Prop({ default: 'admin' })
   source: string;
 
@@ -53,6 +59,14 @@ export class GuestPost {
 
   @Prop({ default: 'manual' })
   contentSource: string;
+
+  // Tham số AI generation — lưu lại để worker generate bài riêng cho từng website khi deploy
+  // aiTopic trống = AI tự chọn chủ đề theo metadata của từng site
+  @Prop({ type: String, default: null })
+  aiTopic: string | null;
+
+  @Prop({ type: Number, default: null })
+  aiWordCount: number | null;
 }
 
 export const GuestPostSchema = SchemaFactory.createForClass(GuestPost);

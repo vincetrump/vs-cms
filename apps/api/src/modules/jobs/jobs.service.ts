@@ -61,6 +61,15 @@ export class JobsService {
     );
   }
 
+  // Ghi nhiều dòng log một lần (dùng cho batch flush của JobConsoleLogger)
+  async addLogs(id: string, entries: Array<{ timestamp: Date; level: string; message: string }>): Promise<void> {
+    if (!entries.length) return;
+    await this.jobModel.updateOne(
+      { _id: id },
+      { $push: { logs: { $each: entries } } },
+    );
+  }
+
   async updateProgress(id: string, current: number, total: number): Promise<void> {
     await this.jobModel.updateOne(
       { _id: id },

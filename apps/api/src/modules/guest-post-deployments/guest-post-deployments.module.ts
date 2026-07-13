@@ -6,6 +6,7 @@ import { WebsitesModule } from '../websites/websites.module';
 import { GuestPostsModule } from '../guest-posts/guest-posts.module';
 import { WebsiteMetadataModule } from '../website-metadata/website-metadata.module';
 import { SshModule } from '../ssh/ssh.module';
+import { ContentGenerationModule } from '../content-generation/content-generation.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SshModule } from '../ssh/ssh.module';
     forwardRef(() => WebsitesModule),
     forwardRef(() => GuestPostsModule),
     WebsiteMetadataModule,
+    ContentGenerationModule,
   ],
   providers: [GuestPostDeploymentsService],
   exports: [GuestPostDeploymentsService],

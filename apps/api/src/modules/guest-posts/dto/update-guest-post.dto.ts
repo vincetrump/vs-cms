@@ -1,4 +1,4 @@
-import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, MaxLength, Matches } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max } from 'class-validator';
 
 export class UpdateGuestPostDto {
   @IsOptional()
@@ -52,6 +52,22 @@ export class UpdateGuestPostDto {
   @IsString()
   @IsIn(['manual', 'ai'])
   contentSource?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  hideBacklink?: boolean;
+
+  // Tham số AI — áp dụng cho các lần deploy tới website mới
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  aiTopic?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(300)
+  @Max(2000)
+  aiWordCount?: number;
 
   @IsOptional()
   @IsArray()

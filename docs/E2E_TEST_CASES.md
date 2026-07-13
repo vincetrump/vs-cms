@@ -1,7 +1,7 @@
 # VS-CMS E2E Test Cases
 
 **Automated: 81 tests** (text link + footer link) | Last run: 79 pass / 2 fail (97.5%)
-**Manual: 14 cases** (Guest Post GP-01 → GP-14, xem section cuối — chưa automate)
+**Manual: 16 cases** (Guest Post GP-01 → GP-16, xem section cuối — chưa automate)
 
 Script: [`docs/e2e-test.sh`](e2e-test.sh)
 
@@ -166,15 +166,17 @@ Các case cần test tay sau khi deploy tính năng Guest Post:
 | GP-03 | Mặc định noindex + không sitemap | Xem source bài vừa deploy | `<meta name="robots" content="noindex, nofollow">`, sitemap.xml KHÔNG có entry |
 | GP-04 | Toggle Real Public | Show page → Go Public, đợi redeploy job | Meta đổi thành `index, follow`, sitemap.xml có entry bài viết |
 | GP-05 | Toggle về NoIndex | Show page → Về NoIndex | Meta về noindex, entry sitemap bị gỡ |
-| GP-06 | Backlink trong bài | Xem source bài deploy | `<a href="{targetUrl}">{anchorText}</a>` có trong content (hoặc đoạn "Tham khảo thêm" cuối bài) |
+| GP-06 | Backlink trong bài có marker | Xem source bài deploy | Backlink được bọc `<!-- vs-cms-gplink:{postId} -->...<!-- /vs-cms-gplink:{postId} -->` (trong câu hoặc đoạn "Tham khảo thêm" cuối bài) |
 | GP-07 | Internal links | Deploy 2-3 bài cùng category lên cùng website | Bài cũ có block `vs-cms-ilink:{id}` trỏ đến bài mới (tối đa 2 nguồn) |
 | GP-08 | Sale tạo → pending → approve | Sale tạo post, admin approve | Post pending không deploy; sau approve mới deploy |
 | GP-09 | Sale edit bài active | Sale sửa content bài active | Status về pending, nội dung trên site giữ nguyên đến khi admin approve |
 | GP-10 | Undeploy / delete | Disable hoặc xóa post | File bị xóa, slug dir bị xóa nếu rỗng (category dir còn), sitemap entry gỡ, internal links gỡ khỏi bài khác |
-| GP-11 | Expired | Set expiresAt quá khứ, chạy job `check_expired_guest_posts` | Post → expired, undeploy all |
+| GP-11 | Expired = gỡ backlink, giữ bài | Set expiresAt quá khứ, chạy job `check_expired_guest_posts` | Post → expired; file bài viết VẪN CÒN trên site nhưng backlink biến mất (marker gỡ sạch); deployment tag "Link đã gỡ"; bấm "Kích hoạt lại" → backlink được chèn lại |
 | GP-12 | Slug trùng | Deploy 2 post cùng slug cùng category lên 1 site | Post thứ 2 tự thành `{slug}-2` |
-| GP-13 | AI generate (cần ANTHROPIC_API_KEY) | Create page → panel AI → nhập topic + anchor/URL → Generate | Form được điền title/slug/meta/category/content, backlink có trong bài |
-| GP-14 | Redeploy giữ URL + internal links | Admin sửa content bài active | File được overwrite, URL không đổi, ilink markers của bài khác trong file vẫn còn |
+| GP-13 | Tạo bài AI (cần ANTHROPIC_API_KEY) | Create page → nhập anchor/URL + chọn websites (chủ đề bỏ trống = AI tự chọn theo site) → Save | Post tạo với title tạm, content trống; KHÔNG có nút Generate; toàn bộ bài sinh lúc deploy |
+| GP-14 | Redeploy giữ URL + internal links | Admin sửa content bài active (bài manual) | File được overwrite, URL không đổi, ilink markers của bài khác trong file vẫn còn |
+| GP-15 | Per-site AI generation | Tạo post AI, deploy lên 2+ websites | Job log hiện "AI mode: mỗi website..."; mỗi site một bài KHÁC NHAU (title/slug/content riêng — xem cột "Bài viết (AI per site)" trong Deployments); redeploy/toggle-public giữ nguyên bài từng site |
+| GP-16 | SEO tags đầy đủ | View source bài đã deploy | Có canonical đúng URL, og:title/og:description/og:url, twitter:card, JSON-LD Article (datePublished), ngày đăng hiển thị dưới h1 |
 
 ---
 

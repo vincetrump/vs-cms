@@ -544,14 +544,15 @@ export class DiscordService {
   }
 
   private async sendGuestPostWebhook(payload: any) {
-    const url = this.guestPostWebhookUrl || this.webhookUrl;
-    if (!url) {
-      this.logger.warn('Discord guest post webhook URL not configured');
+    // KHÔNG fallback về webhook chính (text-link) — chưa cấu hình thì skip, tránh
+    // đổ thông báo guest post vào kênh text-link (giống cách sendFooterWebhook xử lý)
+    if (!this.guestPostWebhookUrl) {
+      this.logger.warn('Discord guest post webhook URL not configured — bỏ qua thông báo');
       return;
     }
 
     try {
-      await axios.post(url, payload);
+      await axios.post(this.guestPostWebhookUrl, payload);
     } catch (err: any) {
       this.logger.error(`Discord guest post webhook failed: ${err.message}`);
     }

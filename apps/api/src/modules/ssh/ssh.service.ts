@@ -226,6 +226,17 @@ export class SshService implements OnModuleDestroy {
     return result.trim().split('\n').filter(Boolean);
   }
 
+  // Tìm tối đa 3 trang detail (/{category}/{slug}/index.html) — dùng làm mẫu build article template
+  async findDetailPages(docRoot: string, serverIp?: string): Promise<string[]> {
+    const safe = this.validatePath(docRoot).replace(/\/$/, '');
+    const escaped = safe.replace(/'/g, "'\\''");
+    const result = await this.executeCommand(
+      `find '${escaped}' -mindepth 3 -maxdepth 3 -name index.html -not -path "*/\\.*" 2>/dev/null | head -3`,
+      serverIp,
+    );
+    return result.trim().split('\n').filter(Boolean);
+  }
+
   async findLiteSpeedDocRoots(serverIp?: string): Promise<Map<string, string>> {
     const docRoots = new Map<string, string>();
 

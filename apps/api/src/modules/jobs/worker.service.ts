@@ -15,6 +15,7 @@ import { GuestPostDeploymentsService } from '../guest-post-deployments/guest-pos
 import { GuestPostHistoryService } from '../guest-post-history/guest-post-history.service';
 import { WebsiteMetadataService } from '../website-metadata/website-metadata.service';
 import { JobDocument } from './schemas/job.schema';
+import { JobConsoleLogger } from '../../common/logging/job-console.logger';
 
 @Injectable()
 export class WorkerService implements OnModuleInit {
@@ -37,6 +38,7 @@ export class WorkerService implements OnModuleInit {
     private guestPostDeploymentsService: GuestPostDeploymentsService,
     private guestPostHistoryService: GuestPostHistoryService,
     private websiteMetadataService: WebsiteMetadataService,
+    private jobConsoleLogger: JobConsoleLogger,
   ) {}
 
   async onModuleInit() {
@@ -73,6 +75,33 @@ export class WorkerService implements OnModuleInit {
 
     await this.jobsService.markRunning(jobId);
     await this.jobsService.addLog(jobId, 'info', `Starting job: ${job.type}`);
+
+    // Bắt toàn bộ console log của mọi service trong lúc job chạy, gom vào job.logs
+    // (batch flush mỗi 800ms để trang Show Job thấy tiến độ live, tránh ghi Mongo từng dòng)
+    const MAX_CAPTURED = 3000;
+    let capturedCount = 0;
+    let buffer: Array<{ timestamp: Date; level: string; message: string }> = [];
+    const flush = async () => {
+      if (!buffer.length) return;
+      const batch = buffer;
+      buffer = [];
+      try {
+        await this.jobsService.addLogs(jobId, batch);
+      } catch {
+        /* không để lỗi flush làm hỏng job */
+      }
+    };
+    const flushTimer = setInterval(() => void flush(), 800);
+    this.jobConsoleLogger.startCapture((level, message, context) => {
+      if (capturedCount >= MAX_CAPTURED) return;
+      capturedCount++;
+      const lvl = level === 'warn' || level === 'error' ? level : 'info';
+      buffer.push({
+        timestamp: new Date(),
+        level: lvl,
+        message: context ? `[${context}] ${message}` : message,
+      });
+    });
 
     try {
       let result: any;
@@ -126,6 +155,9 @@ export class WorkerService implements OnModuleInit {
         case 'redeploy_guest_post':
           result = await this.handleRedeployGuestPost(jobId, job.params);
           break;
+        case 'regenerate_guest_post':
+          result = await this.handleRegenerateGuestPost(jobId, job.params);
+          break;
         case 'scan_website_metadata':
           result = await this.handleScanWebsiteMetadata(jobId, job.params);
           break;
@@ -143,6 +175,13 @@ export class WorkerService implements OnModuleInit {
       await this.jobsService.addLog(jobId, 'error', `Job failed: ${err.message}`);
       await this.jobsService.markFailed(jobId, err.message);
       this.logger.error(`Job ${jobId} failed: ${err.message}`);
+    } finally {
+      this.jobConsoleLogger.stopCapture();
+      clearInterval(flushTimer);
+      await flush();
+      if (capturedCount >= MAX_CAPTURED) {
+        await this.jobsService.addLog(jobId, 'warn', `(Console bị cắt ở ${MAX_CAPTURED} dòng)`);
+      }
     }
   }
 
@@ -469,6 +508,10 @@ export class WorkerService implements OnModuleInit {
 
     await this.jobsService.updateProgress(jobId, 0, websiteIds.length);
     await this.jobsService.addLog(jobId, 'info', `Deploying guest post "${post.title}" to ${websiteIds.length} websites`);
+    if (post.contentSource === 'ai') {
+      await this.jobsService.addLog(jobId, 'info',
+        'AI mode: mỗi website sẽ được generate một bài viết riêng (~1-3 phút/site)');
+    }
 
     const results = await this.guestPostDeploymentsService.deployToWebsites(guestPostId, websiteIds);
 
@@ -477,7 +520,7 @@ export class WorkerService implements OnModuleInit {
 
     for (const r of results) {
       await this.jobsService.addLog(jobId, r.success ? 'info' : 'error',
-        `${r.domain}: ${r.success ? `deployed at ${r.pagePath}` : r.error}`);
+        `${r.domain}: ${r.success ? `deployed at ${r.pagePath}${(r as any).title ? ` — "${(r as any).title}"` : ''}` : r.error}`);
     }
 
     await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
@@ -541,6 +584,36 @@ export class WorkerService implements OnModuleInit {
     return { redeployed: true };
   }
 
+  // Regenerate: viết lại bài AI mới cho các website chỉ định, GIỮ NGUYÊN URL cũ.
+  // deployToWebsites() với bài AI đã tự generate content mới + reuse path của deployment cũ.
+  private async handleRegenerateGuestPost(jobId: string, params: Record<string, any>) {
+    const { guestPostId, websiteIds } = params;
+    const post = await this.guestPostsService.findById(guestPostId);
+    if (!post) throw new Error('Guest post not found');
+
+    await this.jobsService.updateProgress(jobId, 0, websiteIds.length);
+    await this.jobsService.addLog(jobId, 'info',
+      `Generate lại bài AI cho ${websiteIds.length} website (giữ nguyên URL, ~1-3 phút/site)`);
+
+    const results = await this.guestPostDeploymentsService.deployToWebsites(guestPostId, websiteIds);
+
+    const success = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+    for (const r of results) {
+      await this.jobsService.addLog(jobId, r.success ? 'info' : 'error',
+        `${r.domain}: ${r.success ? `bài mới tại ${r.pagePath}${(r as any).title ? ` — "${(r as any).title}"` : ''}` : r.error}`);
+    }
+    await this.jobsService.updateProgress(jobId, websiteIds.length, websiteIds.length);
+
+    await this.guestPostHistoryService.log({
+      guestPostId,
+      action: failed > 0 ? 'regenerate_failed' : 'regenerate_completed',
+      metadata: { jobId, success, failed, total: results.length, websiteIds },
+    });
+
+    return { success, failed, total: results.length };
+  }
+
   private async handleScanWebsiteMetadata(jobId: string, params: Record<string, any>) {
     const websiteIds = params?.websiteIds;
     let websites;
@@ -593,24 +666,48 @@ export class WorkerService implements OnModuleInit {
     await this.jobsService.updateProgress(jobId, 0, expired.length);
     await this.jobsService.addLog(jobId, 'info', `Found ${expired.length} expired guest posts`);
 
+    const processed: typeof expired = [];
     for (let i = 0; i < expired.length; i++) {
       const post = expired[i];
-      await this.jobsService.addLog(jobId, 'info', `Processing expired guest post: ${post.title}`);
-      await this.guestPostDeploymentsService.undeployFromAll(post._id.toString());
+      // Expire = gỡ riêng backlink (marker vs-cms-gplink), bài viết vẫn sống trên site.
+      // Re-activate post → redeploy render lại từ content gốc → backlink được khôi phục.
+      await this.jobsService.addLog(jobId, 'info', `Expired: "${post.title}" — gỡ backlink, giữ bài viết trên site`);
+      const results = await this.guestPostDeploymentsService.removeBacklinkFromDeployedFiles(post._id.toString());
+      for (const r of results) {
+        await this.jobsService.addLog(jobId, r.success ? 'info' : 'error',
+          `${r.domain}: ${r.success ? 'backlink đã gỡ' : r.error}`);
+      }
+
+      // Còn site gỡ thất bại → GIỮ post active để cron đêm sau retry (site đã gỡ rồi thì no-op)
+      const failedRemovals = results.filter((r) => !r.success).length;
+      if (failedRemovals > 0) {
+        await this.jobsService.addLog(jobId, 'error',
+          `"${post.title}": ${failedRemovals} site gỡ backlink thất bại — giữ post active, retry đêm sau`);
+        await this.jobsService.updateProgress(jobId, i + 1, expired.length);
+        continue;
+      }
+
       await this.guestPostsService.update(post._id.toString(), { status: 'expired' });
+      processed.push(post);
 
       await this.guestPostHistoryService.log({
         guestPostId: post._id.toString(),
         action: 'expired',
         changes: { status: { old: post.status, new: 'expired' } },
-        metadata: { jobId, expiresAt: post.expiresAt?.toISOString() },
+        metadata: {
+          jobId,
+          expiresAt: post.expiresAt?.toISOString(),
+          backlinkRemovedFrom: results.filter((r) => r.success).length,
+        },
       });
 
       await this.jobsService.updateProgress(jobId, i + 1, expired.length);
     }
 
-    await this.discordService.sendGuestPostExpirationNotification(expired);
+    if (processed.length) {
+      await this.discordService.sendGuestPostExpirationNotification(processed);
+    }
 
-    return { expired: expired.length };
+    return { expired: processed.length, retryNextRun: expired.length - processed.length };
   }
 }

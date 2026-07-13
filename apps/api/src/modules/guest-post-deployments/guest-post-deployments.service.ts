@@ -6,6 +6,7 @@ import { SshService } from '../ssh/ssh.service';
 import { WebsitesService } from '../websites/websites.service';
 import { GuestPostsService } from '../guest-posts/guest-posts.service';
 import { WebsiteMetadataService } from '../website-metadata/website-metadata.service';
+import { ContentGenerationService } from '../content-generation/content-generation.service';
 
 const VALID_REL_TOKENS = new Set([
   'nofollow', 'noopener', 'noreferrer', 'sponsored', 'ugc', 'external',
@@ -22,6 +23,7 @@ export class GuestPostDeploymentsService {
     @Inject(forwardRef(() => GuestPostsService))
     private guestPostsService: GuestPostsService,
     private websiteMetadataService: WebsiteMetadataService,
+    private contentGenerationService: ContentGenerationService,
   ) {}
 
   async findByGuestPost(guestPostId: string) {
@@ -58,7 +60,7 @@ export class GuestPostDeploymentsService {
     const post = await this.guestPostsService.findById(guestPostId);
     if (!post) throw new Error('Guest post not found');
 
-    const results: Array<{ websiteId: string; domain: string; success: boolean; pagePath?: string; error?: string }> = [];
+    const results: Array<{ websiteId: string; domain: string; success: boolean; pagePath?: string; title?: string; error?: string }> = [];
 
     for (const websiteId of websiteIds) {
       const website = await this.websitesService.findById(websiteId);
@@ -69,8 +71,52 @@ export class GuestPostDeploymentsService {
 
       try {
         const metadata = await this.websiteMetadataService.getOrScan(websiteId);
-        const category = this.websiteMetadataService.resolveCategory(post.category, metadata.navCategories);
 
+        // Bài AI: generate nội dung MỚI riêng cho website này (mỗi site một bài unique,
+        // tránh duplicate content khi cùng guest post deploy lên nhiều site)
+        let article = {
+          title: post.title,
+          content: post.content,
+          metaDescription: post.metaDescription,
+          category: post.category,
+          slugBase: post.slug,
+        };
+        let generatedPerSite = false;
+        if (post.contentSource === 'ai') {
+          if (this.contentGenerationService.isConfigured()) {
+            this.logger.log(`Generating unique AI article for ${website.domain}...`);
+            const generated = await this.contentGenerationService.generateArticle({
+              topic: post.aiTopic?.trim() || undefined,
+              siteContext: {
+                domain: website.domain,
+                siteName: metadata.siteName,
+                siteDescription: metadata.siteDescription,
+                categories: metadata.navCategories || [],
+              },
+              anchorText: post.anchorText,
+              targetUrl: post.targetUrl,
+              rel: post.rel,
+              language: metadata.language,
+              wordCount: post.aiWordCount || undefined,
+            });
+            article = {
+              title: generated.title,
+              content: this.guestPostsService.sanitizeHtml(generated.content),
+              metaDescription: generated.metaDescription,
+              category: generated.category,
+              slugBase: this.guestPostsService.slugify(generated.title),
+            };
+            generatedPerSite = true;
+          } else if (post.content?.trim()) {
+            this.logger.warn(
+              `${website.domain}: post ${guestPostId} is AI-sourced but ANTHROPIC_API_KEY is not configured — deploying shared content`,
+            );
+          } else {
+            throw new Error('Bài AI không có nội dung dự phòng và ANTHROPIC_API_KEY chưa cấu hình — không thể deploy');
+          }
+        }
+
+        let category = this.websiteMetadataService.resolveCategory(article.category, metadata.navCategories);
         this.validatePathSegment(category, 'category');
 
         // Reuse the existing path if this post was previously deployed to this website
@@ -82,21 +128,33 @@ export class GuestPostDeploymentsService {
         if (existing?.filePath && existing?.pagePath) {
           filePath = existing.filePath;
           pagePath = existing.pagePath;
-          slug = pagePath.split('/').filter(Boolean).pop() || post.slug;
+          slug = pagePath.split('/').filter(Boolean).pop() || article.slugBase;
+          // Giữ category theo URL cũ để breadcrumb khớp đường dẫn
+          category = existing.category || category;
+          this.validatePathSegment(category, 'category');
         } else {
-          slug = await this.generateUniqueSlug(website.documentRoot, category, post.slug, website.serverIp);
+          slug = await this.generateUniqueSlug(website.documentRoot, category, article.slugBase, website.serverIp);
           pagePath = `/${category}/${slug}/`;
           filePath = `${website.documentRoot}/${category}/${slug}/index.html`;
         }
 
         this.validatePathSegment(slug, 'slug');
 
-        const content = this.ensureBacklink(post.content, post.anchorText, post.targetUrl, post.rel);
+        const now = new Date();
+        const firstDeployedAt = existing?.firstDeployedAt || now;
+        const content = this.ensureBacklink(article.content, post.anchorText, post.targetUrl, post.rel, guestPostId, !!post.hideBacklink);
         const html = this.websiteMetadataService.renderArticle(
           metadata.articleTemplate,
-          { title: post.title, content, metaDescription: post.metaDescription },
+          { title: article.title, content, metaDescription: article.metaDescription },
           category,
-          { noindex: !post.realPublic },
+          {
+            noindex: !post.realPublic,
+            canonicalUrl: `https://${website.domain}${pagePath}`,
+            publishedAt: firstDeployedAt,
+            modifiedAt: now,
+            siteName: metadata.siteName,
+            language: metadata.language,
+          },
         );
 
         // Giữ lại các internal-link markers mà bài khác đã chèn vào file này (khi overwrite)
@@ -129,7 +187,7 @@ export class GuestPostDeploymentsService {
         let internalLinkSourceFiles: string[] = existing?.internalLinkSourceFiles || [];
         try {
           const inserted = await this.insertInternalLinks(
-            guestPostId, websiteId, category, pagePath, post.title, filePath, website.serverIp,
+            guestPostId, websiteId, category, pagePath, article.title, filePath, website.serverIp,
           );
           if (inserted.length) {
             internalLinkSourceFiles = [...new Set([...internalLinkSourceFiles, ...inserted])];
@@ -145,17 +203,31 @@ export class GuestPostDeploymentsService {
             pagePath,
             category,
             status: 'deployed',
-            deployedAt: new Date(),
+            deployedAt: now,
+            firstDeployedAt,
             removedAt: null,
             errorMessage: null,
             addedToSitemap,
+            backlinkRemoved: false,
             internalLinksCount: internalLinkSourceFiles.length,
             internalLinkSourceFiles,
+            // Nội dung riêng của site này (null = dùng content chung của post).
+            // Lưu bản ĐÃ bọc marker gplink để redeploy refresh được backlink theo anchor/target hiện tại.
+            title: generatedPerSite ? article.title : null,
+            content: generatedPerSite ? content : null,
+            metaDescription: generatedPerSite ? article.metaDescription : null,
+            wordCount: generatedPerSite ? this.guestPostsService.countWords(article.content) : 0,
           },
           { upsert: true, new: true },
         );
 
-        results.push({ websiteId, domain: website.domain, success: true, pagePath });
+        results.push({
+          websiteId,
+          domain: website.domain,
+          success: true,
+          pagePath,
+          ...(generatedPerSite ? { title: article.title } : {}),
+        });
       } catch (err: any) {
         await this.deploymentModel.findOneAndUpdate(
           { guestPostId, websiteId },
@@ -255,12 +327,30 @@ export class GuestPostDeploymentsService {
 
       try {
         const metadata = await this.websiteMetadataService.getOrScan(deployment.websiteId.toString());
-        const content = this.ensureBacklink(post.content, post.anchorText, post.targetUrl, post.rel);
+        // Bài AI per-site: giữ nguyên nội dung riêng đã generate cho site này (không regenerate);
+        // bài manual: dùng nội dung mới nhất của post (admin edit → redeploy cập nhật)
+        const title = deployment.title || post.title;
+        const rawContent = deployment.content || post.content;
+        const metaDescription = deployment.metaDescription || post.metaDescription;
+        const now = new Date();
+        const isExpired = post.status === 'expired';
+        let content = this.ensureBacklink(rawContent, post.anchorText, post.targetUrl, post.rel, guestPostId, !!post.hideBacklink);
+        if (isExpired) {
+          // Post hết hạn: redeploy (ví dụ từ edit) KHÔNG được khôi phục backlink đã gỡ
+          content = this.removeBacklinkFromHtml(content, guestPostId, post.targetUrl);
+        }
         const html = this.websiteMetadataService.renderArticle(
           metadata.articleTemplate,
-          { title: post.title, content, metaDescription: post.metaDescription },
+          { title, content, metaDescription },
           deployment.category,
-          { noindex: !post.realPublic },
+          {
+            noindex: !post.realPublic,
+            canonicalUrl: `https://${website.domain}${deployment.pagePath}`,
+            publishedAt: deployment.firstDeployedAt || deployment.deployedAt || now,
+            modifiedAt: now,
+            siteName: metadata.siteName,
+            language: metadata.language,
+          },
         );
 
         // Giữ lại internal-link markers mà bài khác đã chèn vào file này
@@ -295,8 +385,11 @@ export class GuestPostDeploymentsService {
         }
 
         await this.deploymentModel.findByIdAndUpdate(deployment._id, {
-          deployedAt: new Date(),
+          deployedAt: now,
+          firstDeployedAt: deployment.firstDeployedAt || deployment.deployedAt || now,
           addedToSitemap,
+          // Post active: redeploy render lại từ content gốc → backlink khôi phục; expired: vẫn gỡ
+          backlinkRemoved: isExpired,
         });
       } catch (err: any) {
         this.logger.error(`Redeploy failed for ${deployment.filePath}: ${err.message}`);
@@ -338,16 +431,137 @@ export class GuestPostDeploymentsService {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // If the author did not embed the backlink in the content, append it as a closing paragraph
-  ensureBacklink(content: string, anchorText: string, targetUrl: string, rel?: string | null): string {
+  // Đảm bảo backlink có trong bài và được bọc marker (format giống footer link:
+  // <!-- vs-cms-gplink:{id} --><a ...>anchor</a><!-- /vs-cms-gplink:{id} -->)
+  // để có thể gỡ riêng backlink khi post hết hạn mà vẫn giữ bài viết.
+  // hidden=true → vẫn chèn backlink nhưng bọc style="display:none" để ẩn tạm (ví dụ khi lên prod).
+  ensureBacklink(
+    content: string,
+    anchorText: string,
+    targetUrl: string,
+    rel: string | null | undefined,
+    guestPostId: string,
+    hidden = false,
+  ): string {
     if (!/^https?:\/\//i.test(targetUrl)) {
       throw new Error('Only http/https URLs are allowed');
     }
-    if (content.includes(targetUrl)) return content;
 
+    const startMarker = `<!-- vs-cms-gplink:${guestPostId} -->`;
+    const endMarker = `<!-- /vs-cms-gplink:${guestPostId} -->`;
     const relAttr = rel ? ` rel="${this.escapeHtml(this.sanitizeRel(rel))}"` : '';
-    const linkHtml = `<p>Tham khảo thêm: <a href="${this.escapeHtml(targetUrl)}"${relAttr}>${this.escapeHtml(anchorText)}</a></p>`;
-    return `${content}\n${linkHtml}`;
+    const bareLink = `<a href="${this.escapeHtml(targetUrl)}"${relAttr}>${this.escapeHtml(anchorText)}</a>`;
+    // Ẩn link trong câu: bọc <span style="display:none">; ẩn đoạn "Tham khảo thêm": style trên <p>
+    const bareWrapped = hidden ? `<span style="display:none">${bareLink}</span>` : bareLink;
+    const paraStyle = hidden ? ' style="display:none"' : '';
+    const paraLink = `<p${paraStyle}>Tham khảo thêm: <a href="${this.escapeHtml(targetUrl)}" title="${this.escapeHtml(anchorText)}" target="_blank"${relAttr}>${this.escapeHtml(anchorText)}</a></p>`;
+
+    // Đã có marker → refresh block theo anchor/target/rel/hidden HIỆN TẠI
+    // (admin sửa targetUrl/anchorText/toggle ẩn → redeploy cập nhật đúng chỗ, không tạo link trùng/stale)
+    if (content.includes(startMarker)) {
+      const blockRegex = new RegExp(
+        `<!-- vs-cms-gplink:${this.escapeRegex(guestPostId)} -->([\\s\\S]*?)<!-- /vs-cms-gplink:${this.escapeRegex(guestPostId)} -->`,
+        'g',
+      );
+      return content.replace(blockRegex, (_m, inner: string) =>
+        `${startMarker}${/^<p[\s>]/i.test(inner.trim()) ? paraLink : bareWrapped}${endMarker}`,
+      );
+    }
+
+    // Có backlink trong bài (AI chèn hoặc user tự viết) → bọc marker quanh từng <a> trỏ đến targetUrl.
+    // Match cả URL thô lẫn dạng HTML-entity (href thường chứa &amp; thay vì &)
+    const anchorRegex = new RegExp(`<a\\b[^>]*href=["']${this.urlPattern(targetUrl)}["'][^>]*>[\\s\\S]*?<\\/a>`, 'gi');
+    if (content.match(anchorRegex)) {
+      return content.replace(anchorRegex, (m) =>
+        `${startMarker}${hidden ? `<span style="display:none">${m}</span>` : m}${endMarker}`,
+      );
+    }
+
+    // Không tìm thấy backlink → thêm đoạn "Tham khảo thêm" cuối bài, bọc marker cả đoạn
+    return `${content}\n${startMarker}${paraLink}${endMarker}`;
+  }
+
+  private escapeRegex(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // Pattern match URL trong href ở cả dạng thô và dạng entity-escaped (& → &amp;)
+  private urlPattern(url: string): string {
+    const raw = this.escapeRegex(url);
+    const entity = this.escapeRegex(this.escapeHtml(url));
+    return raw === entity ? raw : `(?:${raw}|${entity})`;
+  }
+
+  // Gỡ backlink khỏi các bài đã deploy nhưng GIỮ NGUYÊN bài viết (dùng khi post expired).
+  // Đoạn "Tham khảo thêm" tự thêm → xóa cả đoạn; link trong câu → unlink (giữ anchor text).
+  async removeBacklinkFromDeployedFiles(guestPostId: string) {
+    const post = await this.guestPostsService.findById(guestPostId);
+    const deployments = await this.findDeployed(guestPostId);
+    const results: Array<{ websiteId: string; domain: string; success: boolean; error?: string }> = [];
+
+    for (const deployment of deployments) {
+      const website = await this.websitesService.findById(deployment.websiteId.toString());
+      if (!website) continue;
+
+      try {
+        await this.sshService.backupFile(deployment.filePath, website.serverIp);
+        const html = await this.sshService.readFile(deployment.filePath, website.serverIp);
+        const cleaned = this.removeBacklinkFromHtml(html, guestPostId, post?.targetUrl);
+        if (cleaned !== html) {
+          await this.sshService.writeFile(deployment.filePath, cleaned, website.serverIp);
+        }
+        await this.deploymentModel.findByIdAndUpdate(deployment._id, { backlinkRemoved: true });
+        results.push({ websiteId: deployment.websiteId.toString(), domain: website.domain, success: true });
+      } catch (err: any) {
+        this.logger.error(`Backlink removal failed for ${deployment.filePath}: ${err.message}`);
+        results.push({ websiteId: deployment.websiteId.toString(), domain: website.domain, success: false, error: err.message });
+      }
+    }
+
+    return results;
+  }
+
+  removeBacklinkFromHtml(html: string, guestPostId: string, targetUrl?: string): string {
+    const escapedId = this.escapeRegex(guestPostId);
+    const blockRegex = new RegExp(
+      `\\n?<!-- vs-cms-gplink:${escapedId} -->([\\s\\S]*?)<!-- /vs-cms-gplink:${escapedId} -->`,
+      'g',
+    );
+    let markerFound = false;
+    let result = html.replace(blockRegex, (m, inner: string) => {
+      markerFound = true;
+      const trimmed = inner.trim();
+      // Xóa cả block khi: (a) đoạn "Tham khảo thêm" tự thêm (bắt đầu bằng <p>), hoặc
+      // (b) backlink đang ẩn (bọc trong <span/p/div style="display:none">) — vốn đã vô hình,
+      // gỡ hẳn thay vì unlink để tránh lộ anchor text thành chữ thường hiển thị.
+      if (/^<p[\s>]/i.test(trimmed) || /^<[a-z]+\b[^>]*style=["'][^"']*display\s*:\s*none/i.test(trimmed)) return '';
+      // Link nằm trong câu văn (đang hiện) → giữ lại text, chỉ gỡ thẻ <a>.
+      // Giữ lại newline đứng trước marker để chữ không bị dính vào từ phía trước.
+      return (m.startsWith('\n') ? '\n' : '') + trimmed.replace(/<[^>]*>/g, '');
+    });
+
+    // Fallback CHỈ cho file cũ chưa có marker, và CHỈ trong vùng <article> — tránh gỡ nhầm
+    // link cùng URL nằm ở header/footer của site (ví dụ footer link của cùng khách hàng)
+    if (!markerFound && targetUrl) {
+      const urlPat = this.urlPattern(targetUrl);
+      const stripLinks = (segment: string) =>
+        segment
+          .replace(
+            new RegExp(`\\n?<p>Tham khảo thêm: <a\\b[^>]*href=["']${urlPat}["'][^>]*>[\\s\\S]*?<\\/a><\\/p>`, 'gi'),
+            '',
+          )
+          .replace(new RegExp(`<a\\b[^>]*href=["']${urlPat}["'][^>]*>([\\s\\S]*?)<\\/a>`, 'gi'), '$1');
+
+      const articleStart = result.search(/<article[\s>]/i);
+      const articleEnd = result.lastIndexOf('</article>');
+      if (articleStart !== -1 && articleEnd > articleStart) {
+        result = result.slice(0, articleStart) + stripLinks(result.slice(articleStart, articleEnd)) + result.slice(articleEnd);
+      } else {
+        result = stripLinks(result);
+      }
+    }
+
+    return result;
   }
 
   private async addToSitemap(sitemapPath: string, domain: string, pagePath: string, serverIp: string) {

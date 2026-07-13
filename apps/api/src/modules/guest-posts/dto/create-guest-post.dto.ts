@@ -1,9 +1,11 @@
-import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, MaxLength, Matches } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max } from 'class-validator';
 
 export class CreateGuestPostDto {
+  // Optional với bài AI (title/content sinh lúc deploy); bắt buộc với bài manual — validate ở controller
+  @IsOptional()
   @IsString()
   @MaxLength(500)
-  title: string;
+  title?: string;
 
   @IsOptional()
   @IsString()
@@ -11,17 +13,22 @@ export class CreateGuestPostDto {
   @Matches(/^[a-z0-9-]+$/, { message: 'slug must contain only lowercase alphanumeric characters and hyphens' })
   slug?: string;
 
+  @IsOptional()
   @IsString()
-  content: string;
+  content?: string;
 
+  // Optional: trống → backend tự cắt từ nội dung bài viết
+  @IsOptional()
   @IsString()
   @MaxLength(300)
-  metaDescription: string;
+  metaDescription?: string;
 
+  // Optional: trống → mặc định tong-hop (AI generate sẽ tự chọn category theo site)
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   @Matches(/^[a-z0-9-]+$/, { message: 'category must contain only lowercase alphanumeric characters and hyphens' })
-  category: string;
+  category?: string;
 
   @IsString()
   @MaxLength(500)
@@ -46,6 +53,23 @@ export class CreateGuestPostDto {
   @IsString()
   @IsIn(['manual', 'ai'])
   contentSource?: string;
+
+  // Ẩn backlink bằng display:none (link vẫn được chèn, chỉ ẩn về mặt hiển thị)
+  @IsOptional()
+  @IsBoolean()
+  hideBacklink?: boolean;
+
+  // Tham số AI — lưu để worker generate bài riêng cho từng website khi deploy
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  aiTopic?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(300)
+  @Max(2000)
+  aiWordCount?: number;
 
   @IsOptional()
   @IsArray()

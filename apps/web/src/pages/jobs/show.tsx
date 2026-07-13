@@ -43,7 +43,16 @@ const levelColors: Record<string, string> = {
 };
 
 export const JobShow = () => {
-  const { query } = useShow({ resource: "jobs" });
+  // Job đang chạy → poll mỗi 2s để console cập nhật live
+  const { query } = useShow({
+    resource: "jobs",
+    queryOptions: {
+      refetchInterval: (data: any) => {
+        const status = data?.data?.status;
+        return status === "running" || status === "pending" ? 2000 : false;
+      },
+    },
+  });
   const { data, isLoading } = query;
   const record = data?.data as any;
   const screens = useBreakpoint();

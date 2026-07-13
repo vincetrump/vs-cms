@@ -107,4 +107,18 @@ export class GuestPostsService {
     if (!text) return 0;
     return text.split(/\s+/).length;
   }
+
+  // Tự sinh meta description khi user không nhập: cắt ~155 ký tự đầu của bài tại ranh giới từ
+  deriveMetaDescription(html: string, fallback = ''): string {
+    const text = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&[a-z#0-9]+;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return fallback.slice(0, 300);
+    if (text.length <= 155) return text;
+    const cut = text.slice(0, 155);
+    const lastSpace = cut.lastIndexOf(' ');
+    return (lastSpace > 80 ? cut.slice(0, lastSpace) : cut) + '…';
+  }
 }

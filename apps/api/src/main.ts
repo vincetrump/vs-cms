@@ -6,9 +6,13 @@ import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { JobConsoleLogger } from './common/logging/job-console.logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  // Logger tùy biến: vẫn in ra stdout, đồng thời cho worker capture log vào job.logs
+  app.useLogger(app.get(JobConsoleLogger));
 
   const configService = app.get(ConfigService);
   const adminUrl = configService.get<string>('app.adminUrl', 'http://localhost:5173');
