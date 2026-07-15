@@ -2,6 +2,9 @@ import { Injectable, Logger, BadRequestException, ServiceUnavailableException } 
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Lỗi nội bộ đánh dấu output bị cắt/dở dang → generateArticle sẽ retry
+class TruncatedError extends Error {}
+
 export interface SiteContext {
   domain?: string;
   siteName?: string;
@@ -117,10 +120,12 @@ Bài viết phải phù hợp với chủ đề chung của website này để t
       { anchorText: params.anchorText, targetUrl: params.targetUrl, rel: params.rel },
       ...(params.extraBacklinks || []),
     ].filter((l) => l.anchorText && l.targetUrl);
+    // Dùng SINGLE QUOTE cho href — thẻ <a> nằm trong JSON string, dùng dấu " sẽ va chạm với
+    // dấu nháy của JSON gây constrained-decoding cắt output; dấu ' không cần escape trong JSON.
     const linksInstruction = allLinks
       .map((l, i) => {
-        const relAttr = l.rel ? ` rel="${l.rel}"` : '';
-        return `  ${i + 1}. anchor text "${l.anchorText}" → URL "${l.targetUrl}" (dạng <a href="${l.targetUrl}"${relAttr}>${l.anchorText}</a>)`;
+        const relAttr = l.rel ? ` rel='${l.rel}'` : '';
+        return `  ${i + 1}. anchor text "${l.anchorText}" → URL "${l.targetUrl}" (dạng <a href='${l.targetUrl}'${relAttr}>${l.anchorText}</a>)`;
       })
       .join('\n');
     const linkCountText = allLinks.length === 1 ? 'đúng 1 backlink' : `đủ ${allLinks.length} backlink (mỗi link 1 lần)`;
@@ -131,49 +136,75 @@ Yêu cầu:
 - Bài viết tự nhiên, hữu ích cho người đọc, chuẩn SEO
 - Trong nội dung PHẢI chèn ${linkCountText} tự nhiên, mỗi backlink đặt ở một vị trí khác nhau trong thân bài (không dồn cạnh nhau, không nhồi nhét):
 ${linksInstruction}
+- QUAN TRỌNG: thuộc tính HTML dùng dấu nháy đơn (ví dụ <a href='...'>), KHÔNG dùng dấu nháy kép
 - Content là HTML body: dùng <p>, <h2>, <h3>, <ul>/<ol>/<li>, <strong>, <em>. KHÔNG dùng <h1>, <script>, <style>, không markdown
 - Không nhồi nhét từ khóa, viết như người thật
 - Mở bài hấp dẫn, thân bài có 2-4 mục h2, kết bài ngắn gọn`;
 
-    try {
-      const response = await client.messages.create({
-        model,
-        max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        output_config: {
-          format: {
-            type: 'json_schema',
-            schema: buildArticleSchema(siteCategories) as any,
+    // Model đôi khi trả output bị cắt (model variance) → thử lại tối đa 3 lần trước khi bỏ cuộc
+    const MAX_ATTEMPTS = 3;
+    let lastTruncationErr: Error | null = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const response = await client.messages.create({
+          model,
+          max_tokens: 16000,
+          // KHÔNG bật extended thinking: viết bài là tác vụ generative, không cần reasoning sâu.
+          // Bật adaptive thinking (nhất là với Sonnet) ngốn phần lớn max_tokens → output bị cắt ngang.
+          output_config: {
+            format: {
+              type: 'json_schema',
+              schema: buildArticleSchema(siteCategories) as any,
+            },
           },
-        },
-        messages: [{ role: 'user', content: prompt }],
-      });
+          messages: [{ role: 'user', content: prompt }],
+        });
 
-      if (response.stop_reason === 'refusal') {
-        throw new BadRequestException('AI declined to generate content for this topic');
-      }
-      if (response.stop_reason === 'max_tokens') {
-        throw new ServiceUnavailableException('AI output was truncated — try a shorter word count');
-      }
+        if (response.stop_reason === 'refusal') {
+          throw new BadRequestException('AI declined to generate content for this topic');
+        }
+        if (response.stop_reason === 'max_tokens') {
+          throw new TruncatedError('AI output bị cắt (max_tokens)');
+        }
 
-      const textBlock = response.content.find((b) => b.type === 'text');
-      if (!textBlock || textBlock.type !== 'text') {
-        throw new ServiceUnavailableException('AI returned no content');
-      }
+        const textBlock = response.content.find((b) => b.type === 'text');
+        if (!textBlock || textBlock.type !== 'text') {
+          throw new TruncatedError('AI returned no content');
+        }
 
-      const article = JSON.parse(textBlock.text) as GeneratedArticle;
-      this.logger.log(`Generated article "${article.title}" (${model})`);
-      return article;
-    } catch (err: any) {
-      if (err instanceof BadRequestException || err instanceof ServiceUnavailableException) {
-        throw err;
+        const article = JSON.parse(textBlock.text) as GeneratedArticle;
+
+        // Guard: structured output có thể "đóng ép" JSON khi output bị cắt → content dở dang.
+        const c = (article.content || '').trim();
+        if (!c || /<[a-z][^>]*$/i.test(c) || /<a\b[^>]*$/i.test(c)) {
+          throw new TruncatedError('content dở dang (kết thúc bằng thẻ mở)');
+        }
+        const words = c.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+        const target = params.wordCount || 800;
+        if (words < Math.min(200, target * 0.4)) {
+          throw new TruncatedError(`content chỉ ${words} từ (yêu cầu ~${target})`);
+        }
+
+        this.logger.log(`Generated article "${article.title}" (${model}, ${words} từ, lần ${attempt})`);
+        return article;
+      } catch (err: any) {
+        if (err instanceof BadRequestException) throw err;
+        if (err instanceof TruncatedError || err instanceof SyntaxError) {
+          // Lỗi truncation/parse → retry
+          lastTruncationErr = err;
+          this.logger.warn(`AI generate lần ${attempt}/${MAX_ATTEMPTS} bị cắt: ${err.message} — thử lại`);
+          continue;
+        }
+        if (err instanceof Anthropic.APIError) {
+          this.logger.error(`Anthropic API error ${err.status}: ${err.message}`);
+          throw new ServiceUnavailableException(`AI generation failed: ${err.message}`);
+        }
+        this.logger.error(`AI generation failed: ${err.message}`);
+        throw new ServiceUnavailableException('AI generation failed');
       }
-      if (err instanceof Anthropic.APIError) {
-        this.logger.error(`Anthropic API error ${err.status}: ${err.message}`);
-        throw new ServiceUnavailableException(`AI generation failed: ${err.message}`);
-      }
-      this.logger.error(`AI generation failed: ${err.message}`);
-      throw new ServiceUnavailableException('AI generation failed');
     }
+    throw new ServiceUnavailableException(
+      `AI output bị cắt ngang sau ${MAX_ATTEMPTS} lần thử (${lastTruncationErr?.message || ''}) — thử lại sau`,
+    );
   }
 }

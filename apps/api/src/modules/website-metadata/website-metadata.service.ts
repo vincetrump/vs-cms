@@ -188,15 +188,21 @@ export class WebsiteMetadataService {
       .replace(/\s*<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
     tpl = tpl.replace(/<head([^>]*)>/i, '<head$1>\n  {robotsMeta}\n  {seoMeta}');
 
-    // --- BODY: thay ruột của content container bằng khối bài viết chuẩn ---
-    const articleInner = `\n      <h1>{title}</h1>\n      {publishedDate}\n      <div class="article-body">\n        {content}\n      </div>\n    `;
+    // --- BODY: thay ruột <article>/<main> bằng khối bài viết chuẩn, NHƯNG tái tạo lại
+    // wrapper căn giữa của site (thường là <div class="container ...-inner"> nằm ngay trong
+    // <article>) để không bị tràn viền; đồng thời loại bỏ meta-bar tác giả/ngày cứng của bài mẫu.
+    const innerCore = `<h1>{title}</h1>\n      {publishedDate}\n      <div class="article-body">\n        {content}\n      </div>`;
+    const wrapArticle = this.firstChildWrapper(tpl, /<article\b[^>]*>/i);
+    const articleInner = wrapArticle
+      ? `\n      ${wrapArticle.open}\n      ${innerCore}\n      </${wrapArticle.tag}>\n    `
+      : `\n      ${innerCore}\n    `;
     let swapped = this.replaceBalancedInner(tpl, /<(article)\b[^>]*>/i, () => articleInner);
     if (!swapped) {
-      swapped = this.replaceBalancedInner(
-        tpl,
-        /<(main)\b[^>]*>/i,
-        () => `\n    <article>${articleInner}</article>\n  `,
-      );
+      const wrapMain = this.firstChildWrapper(tpl, /<main\b[^>]*>/i);
+      const mainInner = wrapMain
+        ? `\n    <article>${wrapMain.open}${innerCore}</${wrapMain.tag}></article>\n  `
+        : `\n    <article>${innerCore}</article>\n  `;
+      swapped = this.replaceBalancedInner(tpl, /<(main)\b[^>]*>/i, () => mainInner);
     }
     if (!swapped) return null;
     tpl = swapped;
@@ -474,6 +480,17 @@ ${ARTICLE_CSS}</style>
       }
     }
     return null;
+  }
+
+  // Lấy thẻ mở của phần tử con ĐẦU TIÊN (div/section) ngay bên trong phần tử khớp parentRegex.
+  // Dùng để tái tạo wrapper căn giữa của site (ví dụ <div class="container ...-inner">) quanh content.
+  private firstChildWrapper(html: string, parentRegex: RegExp): { open: string; tag: string } | null {
+    const m = new RegExp(parentRegex.source, parentRegex.flags.replace('g', '')).exec(html);
+    if (!m) return null;
+    const after = html.slice(m.index + m[0].length);
+    const child = after.match(/^\s*<(div|section)\b[^>]*>/i);
+    if (!child) return null;
+    return { open: child[0].trim(), tag: child[1].toLowerCase() };
   }
 
   // Thay toàn bộ phần con của phần tử đầu tiên khớp openRegex (giữ nguyên thẻ mở + class của site)
