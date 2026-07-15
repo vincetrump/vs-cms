@@ -56,7 +56,9 @@ export class GuestPostDeploymentsService {
     return this.deploymentModel.countDocuments({ guestPostId, status: 'deployed' }).exec();
   }
 
-  async deployToWebsites(guestPostId: string, websiteIds: string[]) {
+  // onProgress(done): báo số site đã xử lý xong (dùng để cập nhật progress bar của job — deploy AI
+  // nhiều site chạy lâu, không có callback thì thanh tiến độ đứng yên tới cuối).
+  async deployToWebsites(guestPostId: string, websiteIds: string[], onProgress?: (done: number) => void) {
     const post = await this.guestPostsService.findById(guestPostId);
     if (!post) throw new Error('Guest post not found');
 
@@ -66,6 +68,7 @@ export class GuestPostDeploymentsService {
       const website = await this.websitesService.findById(websiteId);
       if (!website?.documentRoot) {
         results.push({ websiteId, domain: website?.domain || 'unknown', success: false, error: 'No document root' });
+        onProgress?.(results.length);
         continue;
       }
 
@@ -239,6 +242,7 @@ export class GuestPostDeploymentsService {
         );
         results.push({ websiteId, domain: website.domain, success: false, error: err.message });
       }
+      onProgress?.(results.length);
     }
 
     return results;

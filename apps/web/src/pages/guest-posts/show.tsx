@@ -211,24 +211,32 @@ export const GuestPostShow = () => {
       message.warning("Không có website nào đang deployed");
       return;
     }
-    const anchorText = record?.anchorText || "";
-    const rel = record?.rel || "dofollow";
-    const targetUrl = record?.targetUrl || "";
+    // Tất cả backlink của post: backlink chính + các backlink phụ (multi-anchor)
+    const backlinks = [
+      { anchorText: record?.anchorText || "", targetUrl: record?.targetUrl || "", rel: record?.rel || "dofollow", hidden: !!record?.hideBacklink },
+      ...((record?.extraBacklinks || []) as any[]).map((b) => ({
+        anchorText: b.anchorText || "", targetUrl: b.targetUrl || "", rel: b.rel || "dofollow", hidden: !!b.hideBacklink,
+      })),
+    ].filter((b) => b.anchorText && b.targetUrl);
     const expires = record?.expiresAt ? new Date(record.expiresAt).toLocaleDateString() : "Never";
-    const rows = [["Domain", "Article URL", "Category", "Anchor Text", "Rel", "Target URL", "Expires", "Deployed At"]];
+    // Mỗi (website × backlink) là một dòng
+    const rows = [["Domain", "Article URL", "Category", "Anchor Text", "Rel", "Target URL", "Backlink Status", "Expires", "Deployed At"]];
     for (const d of deployed) {
       const domain = typeof d.websiteId === "object" ? d.websiteId.domain : d.websiteId;
       const pagePath = d.pagePath || "/";
       const fullUrl = `https://${domain}${pagePath}`;
       const deployedAt = d.deployedAt ? new Date(d.deployedAt).toLocaleString() : "";
-      rows.push([domain, fullUrl, d.category || "", anchorText, rel, targetUrl, expires, deployedAt]);
+      for (const bl of backlinks) {
+        const status = d.backlinkRemoved ? "removed (expired)" : bl.hidden ? "hidden" : "live";
+        rows.push([domain, fullUrl, d.category || "", bl.anchorText, bl.rel, bl.targetUrl, status, expires, deployedAt]);
+      }
     }
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `guest-post-${record?.title || record?._id}-websites.csv`;
+    a.download = `guest-post-${record?.title || record?._id}-backlinks.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -310,6 +318,13 @@ export const GuestPostShow = () => {
                 pagination={false}
                 scroll={{ x: 700 }}
               >
+                <Table.Column
+                  title="No."
+                  key="no"
+                  width={56}
+                  fixed="left"
+                  render={(_: any, __: any, index: number) => index + 1}
+                />
                 <Table.Column
                   title="Website"
                   dataIndex="websiteId"

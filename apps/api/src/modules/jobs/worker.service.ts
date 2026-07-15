@@ -513,7 +513,10 @@ export class WorkerService implements OnModuleInit {
         'AI mode: mỗi website sẽ được generate một bài viết riêng (~1-3 phút/site)');
     }
 
-    const results = await this.guestPostDeploymentsService.deployToWebsites(guestPostId, websiteIds);
+    const results = await this.guestPostDeploymentsService.deployToWebsites(
+      guestPostId, websiteIds,
+      (done) => { void this.jobsService.updateProgress(jobId, done, websiteIds.length); },
+    );
 
     const success = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
@@ -595,7 +598,10 @@ export class WorkerService implements OnModuleInit {
     await this.jobsService.addLog(jobId, 'info',
       `Generate lại bài AI cho ${websiteIds.length} website (giữ nguyên URL, ~1-3 phút/site)`);
 
-    const results = await this.guestPostDeploymentsService.deployToWebsites(guestPostId, websiteIds);
+    const results = await this.guestPostDeploymentsService.deployToWebsites(
+      guestPostId, websiteIds,
+      (done) => { void this.jobsService.updateProgress(jobId, done, websiteIds.length); },
+    );
 
     const success = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
