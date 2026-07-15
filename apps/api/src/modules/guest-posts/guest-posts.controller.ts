@@ -43,6 +43,11 @@ export class GuestPostsController {
     private websitesService: WebsitesService,
   ) {}
 
+  // rel rỗng hoặc 'dofollow' (option mặc định trên UI) → null (không đặt thuộc tính rel)
+  private normRel(rel?: string | null): string | null {
+    return rel && rel !== 'dofollow' ? rel : null;
+  }
+
   private getCreatorId(post: any): string | null {
     if (!post.createdBy) return null;
     return typeof post.createdBy === 'object' ? post.createdBy._id?.toString() : post.createdBy.toString();
@@ -165,7 +170,7 @@ export class GuestPostsController {
       category: dto.category || 'tong-hop',
       anchorText: dto.anchorText,
       targetUrl: dto.targetUrl,
-      rel: dto.rel || null,
+      rel: this.normRel(dto.rel),
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       contentSource: dto.contentSource || 'manual',
       aiTopic: dto.aiTopic?.trim() || null,
@@ -174,7 +179,7 @@ export class GuestPostsController {
       extraBacklinks: (dto.extraBacklinks || []).map((b) => ({
         anchorText: b.anchorText,
         targetUrl: b.targetUrl,
-        rel: b.rel || null,
+        rel: this.normRel(b.rel),
         hideBacklink: b.hideBacklink ?? true,
       })),
       status: isSale ? 'pending' : 'active',
@@ -226,8 +231,8 @@ export class GuestPostsController {
       changes.anchorText = { old: existing.anchorText, new: dto.anchorText };
     if (dto.targetUrl && dto.targetUrl !== existing.targetUrl)
       changes.targetUrl = { old: existing.targetUrl, new: dto.targetUrl };
-    if (dto.rel !== undefined && (dto.rel || null) !== (existing.rel || null))
-      changes.rel = { old: existing.rel || 'not set', new: dto.rel || 'not set' };
+    if (dto.rel !== undefined && this.normRel(dto.rel) !== (existing.rel || null))
+      changes.rel = { old: existing.rel || 'dofollow', new: this.normRel(dto.rel) || 'dofollow' };
     if (dto.expiresAt !== undefined) {
       const oldExp = existing.expiresAt ? new Date(existing.expiresAt).toISOString() : null;
       const newExp = dto.expiresAt || null;
@@ -249,7 +254,7 @@ export class GuestPostsController {
     if (dto.category) updateData.category = dto.category;
     if (dto.anchorText) updateData.anchorText = dto.anchorText;
     if (dto.targetUrl) updateData.targetUrl = dto.targetUrl;
-    if (dto.rel !== undefined) updateData.rel = dto.rel || null;
+    if (dto.rel !== undefined) updateData.rel = this.normRel(dto.rel);
     if (dto.expiresAt !== undefined) updateData.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
     if (dto.contentSource) updateData.contentSource = dto.contentSource;
     if (dto.aiTopic !== undefined) updateData.aiTopic = dto.aiTopic?.trim() || null;
@@ -265,7 +270,7 @@ export class GuestPostsController {
     let extraBacklinksChanged = false;
     if (dto.extraBacklinks !== undefined) {
       const normalized = dto.extraBacklinks.map((b) => ({
-        anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel || null, hideBacklink: b.hideBacklink ?? true,
+        anchorText: b.anchorText, targetUrl: b.targetUrl, rel: this.normRel(b.rel), hideBacklink: b.hideBacklink ?? true,
       }));
       const oldJson = JSON.stringify((existing.extraBacklinks || []).map((b: any) => ({
         anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel || null, hideBacklink: !!b.hideBacklink,

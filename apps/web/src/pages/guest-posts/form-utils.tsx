@@ -66,6 +66,7 @@ export const COMMON_CATEGORIES = [
 ];
 
 export const REL_OPTIONS = [
+  { label: "dofollow (mặc định — không đặt rel)", value: "dofollow" },
   { label: "nofollow", value: "nofollow" },
   { label: "sponsored", value: "sponsored" },
   { label: "nofollow sponsored", value: "nofollow sponsored" },

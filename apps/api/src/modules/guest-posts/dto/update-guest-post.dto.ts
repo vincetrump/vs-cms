@@ -41,7 +41,7 @@ export class UpdateGuestPostDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^(nofollow|noopener|noreferrer|sponsored|ugc|external)(\s+(nofollow|noopener|noreferrer|sponsored|ugc|external))*$/, {
+  @Matches(/^(dofollow|nofollow|noopener|noreferrer|sponsored|ugc|external)(\s+(nofollow|noopener|noreferrer|sponsored|ugc|external))*$/, {
     message: 'rel must contain only valid tokens: nofollow, noopener, noreferrer, sponsored, ugc, external',
   })
   rel?: string;
