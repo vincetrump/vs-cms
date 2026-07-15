@@ -1,9 +1,58 @@
 import { useState } from "react";
-import { Form, Input, Button, AutoComplete, Modal, Space, Typography, message } from "antd";
-import { LinkOutlined, EyeOutlined } from "@ant-design/icons";
+import { Form, Input, Button, AutoComplete, Modal, Space, Typography, message, Select, Switch, Card, Row, Col, Grid } from "antd";
+import { LinkOutlined, EyeOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { axiosInstance, API_URL } from "../../providers/dataProvider";
 
 const { Text } = Typography;
+
+// Danh sách backlink phụ (tùy chọn) — thêm/xóa động. Mỗi link: anchor + URL + rel + ẩn.
+export const ExtraBacklinks = () => {
+  const screens = Grid.useBreakpoint();
+  const span = screens.md ? 12 : 24;
+  return (
+    <Form.List name="extraBacklinks">
+      {(fields, { add, remove }) => (
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>Backlink phụ (tùy chọn)</Text>
+          <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 8 }}>
+            Thêm link nếu muốn nhiều hơn 1 backlink. AI sẽ chèn tất cả tự nhiên vào bài. Chung ngày hết hạn với backlink chính.
+          </Text>
+          {fields.map(({ key, name, ...rest }) => (
+            <Card key={key} size="small" style={{ marginBottom: 8 }}
+              extra={<Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => remove(name)}>Xóa</Button>}
+            >
+              <Row gutter={12}>
+                <Col span={span}>
+                  <Form.Item {...rest} name={[name, "anchorText"]} label="Anchor Text" rules={[{ required: true, message: "Nhập anchor" }]} style={{ marginBottom: 8 }}>
+                    <Input placeholder="Visible link text" />
+                  </Form.Item>
+                </Col>
+                <Col span={span}>
+                  <Form.Item {...rest} name={[name, "targetUrl"]} label="Target URL" rules={[{ required: true, type: "url", message: "URL không hợp lệ" }]} style={{ marginBottom: 8 }}>
+                    <Input placeholder="https://example.com" />
+                  </Form.Item>
+                </Col>
+                <Col span={span}>
+                  <Form.Item {...rest} name={[name, "rel"]} label="Rel" style={{ marginBottom: 0 }}>
+                    <Select allowClear placeholder="Not set (dofollow)" options={REL_OPTIONS} />
+                  </Form.Item>
+                </Col>
+                <Col span={span}>
+                  <Form.Item {...rest} name={[name, "hideBacklink"]} label="Ẩn backlink" valuePropName="checked" initialValue={true} style={{ marginBottom: 0 }}>
+                    <Switch checkedChildren="Ẩn" unCheckedChildren="Hiện" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          ))}
+          <Button type="dashed" onClick={() => add({ hideBacklink: true })} icon={<PlusOutlined />} block>
+            Thêm backlink
+          </Button>
+        </div>
+      )}
+    </Form.List>
+  );
+};
 
 export const COMMON_CATEGORIES = [
   "tong-hop",

@@ -96,6 +96,9 @@ export class GuestPostDeploymentsService {
               anchorText: post.anchorText,
               targetUrl: post.targetUrl,
               rel: post.rel,
+              extraBacklinks: (post.extraBacklinks || []).map((b: any) => ({
+                anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel,
+              })),
               language: metadata.language,
               wordCount: post.aiWordCount || undefined,
             });
@@ -142,7 +145,7 @@ export class GuestPostDeploymentsService {
 
         const now = new Date();
         const firstDeployedAt = existing?.firstDeployedAt || now;
-        const content = this.ensureBacklink(article.content, post.anchorText, post.targetUrl, post.rel, guestPostId, !!post.hideBacklink);
+        const content = this.ensureBacklinks(article.content, post);
         const html = this.websiteMetadataService.renderArticle(
           metadata.articleTemplate,
           { title: article.title, content, metaDescription: article.metaDescription },
@@ -334,7 +337,7 @@ export class GuestPostDeploymentsService {
         const metaDescription = deployment.metaDescription || post.metaDescription;
         const now = new Date();
         const isExpired = post.status === 'expired';
-        let content = this.ensureBacklink(rawContent, post.anchorText, post.targetUrl, post.rel, guestPostId, !!post.hideBacklink);
+        let content = this.ensureBacklinks(rawContent, post);
         if (isExpired) {
           // Post hết hạn: redeploy (ví dụ từ edit) KHÔNG được khôi phục backlink đã gỡ
           content = this.removeBacklinkFromHtml(content, guestPostId, post.targetUrl);
@@ -431,8 +434,49 @@ export class GuestPostDeploymentsService {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Đảm bảo backlink có trong bài và được bọc marker (format giống footer link:
-  // <!-- vs-cms-gplink:{id} --><a ...>anchor</a><!-- /vs-cms-gplink:{id} -->)
+  // Danh sách toàn bộ backlink của post: backlink chính (index 0) + các backlink phụ.
+  // markerId: primary = postId (giữ format cũ để tương thích ngược); phụ = postId:{i}.
+  getAllBacklinks(post: any): Array<{ anchorText: string; targetUrl: string; rel: string | null; hidden: boolean; markerId: string }> {
+    const list = [
+      { anchorText: post.anchorText, targetUrl: post.targetUrl, rel: post.rel, hidden: !!post.hideBacklink, markerId: post._id.toString() },
+    ];
+    (post.extraBacklinks || []).forEach((b: any, i: number) => {
+      if (b?.anchorText && b?.targetUrl) {
+        list.push({ anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel, hidden: !!b.hideBacklink, markerId: `${post._id.toString()}:${i + 1}` });
+      }
+    });
+    return list;
+  }
+
+  // Chèn/refresh TẤT CẢ backlink của post (chính + phụ), mỗi cái một marker riêng.
+  ensureBacklinks(content: string, post: any): string {
+    const backlinks = this.getAllBacklinks(post);
+    // Gỡ marker của backlink phụ đã bị XÓA/giảm bớt (khi redeploy content cũ còn marker thừa)
+    let out = this.stripOrphanBacklinks(content, post._id.toString(), new Set(backlinks.map((b) => b.markerId)));
+    for (const b of backlinks) {
+      out = this.ensureBacklink(out, b.anchorText, b.targetUrl, b.rel, b.markerId, b.hidden);
+    }
+    return out;
+  }
+
+  // Gỡ các block gplink của post mà markerId KHÔNG còn trong danh sách hiện tại (backlink phụ bị xóa
+  // hoặc giảm số lượng). Xử lý như unlink giữ text nếu là link trong câu, xóa hẳn nếu là đoạn/ẩn.
+  private stripOrphanBacklinks(html: string, postId: string, validMarkerIds: Set<string>): string {
+    const escapedId = this.escapeRegex(postId);
+    const blockRegex = new RegExp(
+      `\\n?<!-- vs-cms-gplink:(${escapedId}(?::\\d+)?) -->([\\s\\S]*?)<!-- /vs-cms-gplink:\\1 -->`,
+      'g',
+    );
+    return html.replace(blockRegex, (m, markerId: string, inner: string) => {
+      if (validMarkerIds.has(markerId)) return m; // vẫn còn dùng → giữ nguyên (ensureBacklink refresh sau)
+      const trimmed = inner.trim();
+      if (/^<p[\s>]/i.test(trimmed) || /^<[a-z]+\b[^>]*style=["'][^"']*display\s*:\s*none/i.test(trimmed)) return '';
+      return (m.startsWith('\n') ? '\n' : '') + trimmed.replace(/<[^>]*>/g, '');
+    });
+  }
+
+  // Đảm bảo MỘT backlink có trong bài và được bọc marker (format giống footer link:
+  // <!-- vs-cms-gplink:{markerId} --><a ...>anchor</a><!-- /vs-cms-gplink:{markerId} -->)
   // để có thể gỡ riêng backlink khi post hết hạn mà vẫn giữ bài viết.
   // hidden=true → vẫn chèn backlink nhưng bọc style="display:none" để ẩn tạm (ví dụ khi lên prod).
   ensureBacklink(
@@ -440,15 +484,15 @@ export class GuestPostDeploymentsService {
     anchorText: string,
     targetUrl: string,
     rel: string | null | undefined,
-    guestPostId: string,
+    markerId: string,
     hidden = false,
   ): string {
     if (!/^https?:\/\//i.test(targetUrl)) {
       throw new Error('Only http/https URLs are allowed');
     }
 
-    const startMarker = `<!-- vs-cms-gplink:${guestPostId} -->`;
-    const endMarker = `<!-- /vs-cms-gplink:${guestPostId} -->`;
+    const startMarker = `<!-- vs-cms-gplink:${markerId} -->`;
+    const endMarker = `<!-- /vs-cms-gplink:${markerId} -->`;
     const relAttr = rel ? ` rel="${this.escapeHtml(this.sanitizeRel(rel))}"` : '';
     const bareLink = `<a href="${this.escapeHtml(targetUrl)}"${relAttr}>${this.escapeHtml(anchorText)}</a>`;
     // Ẩn link trong câu: bọc <span style="display:none">; ẩn đoạn "Tham khảo thêm": style trên <p>
@@ -460,7 +504,7 @@ export class GuestPostDeploymentsService {
     // (admin sửa targetUrl/anchorText/toggle ẩn → redeploy cập nhật đúng chỗ, không tạo link trùng/stale)
     if (content.includes(startMarker)) {
       const blockRegex = new RegExp(
-        `<!-- vs-cms-gplink:${this.escapeRegex(guestPostId)} -->([\\s\\S]*?)<!-- /vs-cms-gplink:${this.escapeRegex(guestPostId)} -->`,
+        `<!-- vs-cms-gplink:${this.escapeRegex(markerId)} -->([\\s\\S]*?)<!-- /vs-cms-gplink:${this.escapeRegex(markerId)} -->`,
         'g',
       );
       return content.replace(blockRegex, (_m, inner: string) =>
@@ -468,17 +512,31 @@ export class GuestPostDeploymentsService {
       );
     }
 
-    // Có backlink trong bài (AI chèn hoặc user tự viết) → bọc marker quanh từng <a> trỏ đến targetUrl.
-    // Match cả URL thô lẫn dạng HTML-entity (href thường chứa &amp; thay vì &)
-    const anchorRegex = new RegExp(`<a\\b[^>]*href=["']${this.urlPattern(targetUrl)}["'][^>]*>[\\s\\S]*?<\\/a>`, 'gi');
-    if (content.match(anchorRegex)) {
-      return content.replace(anchorRegex, (m) =>
-        `${startMarker}${hidden ? `<span style="display:none">${m}</span>` : m}${endMarker}`,
-      );
-    }
+    // Có backlink trong bài (AI chèn hoặc user tự viết) → bọc marker quanh MỌI <a> trỏ đến targetUrl
+    // mà CHƯA nằm trong marker khác. Bọc tất cả (không chỉ cái đầu) để mọi link chết đều gỡ được
+    // khi hết hạn — tránh sót link trùng URL. Match cả URL thô lẫn dạng HTML-entity (href chứa &amp;).
+    const anchorRegexG = new RegExp(`<a\\b[^>]*href=["']${this.urlPattern(targetUrl)}["'][^>]*>[\\s\\S]*?<\\/a>`, 'gi');
+    let wrappedAny = false;
+    const wrapped = content.replace(anchorRegexG, (m: string, ...args: any[]) => {
+      const offset = args[args.length - 2] as number; // offset vào chuỗi gốc
+      if (this.isInsideGplinkMarker(content, offset)) return m; // đã thuộc backlink khác → bỏ qua
+      wrappedAny = true;
+      return `${startMarker}${hidden ? `<span style="display:none">${m}</span>` : m}${endMarker}`;
+    });
+    if (wrappedAny) return wrapped;
 
-    // Không tìm thấy backlink → thêm đoạn "Tham khảo thêm" cuối bài, bọc marker cả đoạn
+    // Không có <a> tự do nào → thêm đoạn "Tham khảo thêm" cuối bài, bọc marker cả đoạn
     return `${content}\n${startMarker}${paraLink}${endMarker}`;
+  }
+
+  // Kiểm tra vị trí index có nằm trong một block gplink đã bọc chưa (tránh bọc chồng marker
+  // khi nhiều backlink cùng targetUrl, hoặc backlink chính đã được bọc rồi)
+  private isInsideGplinkMarker(content: string, index: number): boolean {
+    const before = content.slice(0, index);
+    const lastOpen = before.lastIndexOf('<!-- vs-cms-gplink:');
+    if (lastOpen === -1) return false;
+    const lastClose = before.lastIndexOf('<!-- /vs-cms-gplink:');
+    return lastOpen > lastClose;
   }
 
   private escapeRegex(s: string): string {
@@ -523,12 +581,14 @@ export class GuestPostDeploymentsService {
 
   removeBacklinkFromHtml(html: string, guestPostId: string, targetUrl?: string): string {
     const escapedId = this.escapeRegex(guestPostId);
+    // Match marker của backlink chính (postId) LẪN backlink phụ (postId:{i}); backreference \1
+    // đảm bảo thẻ đóng khớp đúng thẻ mở, không nhầm lẫn giữa các index.
     const blockRegex = new RegExp(
-      `\\n?<!-- vs-cms-gplink:${escapedId} -->([\\s\\S]*?)<!-- /vs-cms-gplink:${escapedId} -->`,
+      `\\n?<!-- vs-cms-gplink:(${escapedId}(?::\\d+)?) -->([\\s\\S]*?)<!-- /vs-cms-gplink:\\1 -->`,
       'g',
     );
     let markerFound = false;
-    let result = html.replace(blockRegex, (m, inner: string) => {
+    let result = html.replace(blockRegex, (m, _markerId: string, inner: string) => {
       markerFound = true;
       const trimmed = inner.trim();
       // Xóa cả block khi: (a) đoạn "Tham khảo thêm" tự thêm (bắt đầu bằng <p>), hoặc

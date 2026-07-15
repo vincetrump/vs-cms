@@ -1,4 +1,6 @@
-import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max, ValidateNested, ArrayMaxSize } from 'class-validator';
+import { Type } from 'class-transformer';
+import { BacklinkDto } from './backlink.dto';
 
 export class CreateGuestPostDto {
   // Optional với bài AI (title/content sinh lúc deploy); bắt buộc với bài manual — validate ở controller
@@ -58,6 +60,14 @@ export class CreateGuestPostDto {
   @IsOptional()
   @IsBoolean()
   hideBacklink?: boolean;
+
+  // Backlink phụ (tùy chọn) — tối đa 9 link phụ
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(9)
+  @ValidateNested({ each: true })
+  @Type(() => BacklinkDto)
+  extraBacklinks?: BacklinkDto[];
 
   // Tham số AI — lưu để worker generate bài riêng cho từng website khi deploy
   @IsOptional()

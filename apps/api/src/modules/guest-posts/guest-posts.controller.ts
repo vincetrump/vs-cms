@@ -171,6 +171,12 @@ export class GuestPostsController {
       aiTopic: dto.aiTopic?.trim() || null,
       aiWordCount: dto.aiWordCount || null,
       hideBacklink: dto.hideBacklink ?? true,
+      extraBacklinks: (dto.extraBacklinks || []).map((b) => ({
+        anchorText: b.anchorText,
+        targetUrl: b.targetUrl,
+        rel: b.rel || null,
+        hideBacklink: b.hideBacklink ?? true,
+      })),
       status: isSale ? 'pending' : 'active',
       source: isSale ? 'sale' : 'admin',
       createdBy: req.user.sub,
@@ -256,10 +262,25 @@ export class GuestPostsController {
       changes.hideBacklink = { old: existing.hideBacklink ? 'Ẩn' : 'Hiện', new: dto.hideBacklink ? 'Ẩn' : 'Hiện' };
     }
 
+    let extraBacklinksChanged = false;
+    if (dto.extraBacklinks !== undefined) {
+      const normalized = dto.extraBacklinks.map((b) => ({
+        anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel || null, hideBacklink: b.hideBacklink ?? true,
+      }));
+      const oldJson = JSON.stringify((existing.extraBacklinks || []).map((b: any) => ({
+        anchorText: b.anchorText, targetUrl: b.targetUrl, rel: b.rel || null, hideBacklink: !!b.hideBacklink,
+      })));
+      if (JSON.stringify(normalized) !== oldJson) {
+        updateData.extraBacklinks = normalized;
+        extraBacklinksChanged = true;
+        changes.extraBacklinks = { old: `${(existing.extraBacklinks || []).length} link`, new: `${normalized.length} link` };
+      }
+    }
+
     const isSale = req.user.role === 'sale';
-    // Đổi trạng thái ẩn/hiện backlink cần re-render article → tính là content change (để redeploy)
+    // Đổi trạng thái ẩn/hiện backlink hoặc danh sách backlink phụ cần re-render → tính là content change
     const hasContentChanges = !!(
-      dto.title || dto.content || dto.metaDescription || dto.anchorText || dto.targetUrl || dto.rel !== undefined || hideBacklinkChanged
+      dto.title || dto.content || dto.metaDescription || dto.anchorText || dto.targetUrl || dto.rel !== undefined || hideBacklinkChanged || extraBacklinksChanged
     );
 
     if (isSale && existing.status === 'active' && hasContentChanges) {

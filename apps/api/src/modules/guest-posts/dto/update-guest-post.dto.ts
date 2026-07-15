@@ -1,4 +1,6 @@
-import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max } from 'class-validator';
+import { IsString, IsUrl, IsOptional, IsDateString, IsArray, IsIn, IsNumber, IsBoolean, MaxLength, Matches, Min, Max, ValidateNested, ArrayMaxSize } from 'class-validator';
+import { Type } from 'class-transformer';
+import { BacklinkDto } from './backlink.dto';
 
 export class UpdateGuestPostDto {
   @IsOptional()
@@ -56,6 +58,13 @@ export class UpdateGuestPostDto {
   @IsOptional()
   @IsBoolean()
   hideBacklink?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(9)
+  @ValidateNested({ each: true })
+  @Type(() => BacklinkDto)
+  extraBacklinks?: BacklinkDto[];
 
   // Tham số AI — áp dụng cho các lần deploy tới website mới
   @IsOptional()

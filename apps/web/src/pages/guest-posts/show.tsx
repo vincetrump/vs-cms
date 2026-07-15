@@ -273,6 +273,20 @@ export const GuestPostShow = () => {
                 <Tag color={record?.hideBacklink ? "orange" : "green"}>{record?.hideBacklink ? "Đang ẩn (display:none)" : "Hiện"}</Tag>
               </Tooltip>
             </Descriptions.Item>
+            {record?.extraBacklinks?.length > 0 && (
+              <Descriptions.Item label={`Backlink phụ (${record.extraBacklinks.length})`} span={screens.md ? 2 : 1}>
+                <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                  {record.extraBacklinks.map((b: any, i: number) => (
+                    <div key={i} style={{ wordBreak: "break-all" }}>
+                      <a href={/^https?:\/\//i.test(b.targetUrl) ? b.targetUrl : "#"} target="_blank" rel="noopener noreferrer">{b.anchorText}</a>
+                      {" → "}<Text type="secondary">{b.targetUrl}</Text>{" "}
+                      {b.rel && <Tag>{b.rel}</Tag>}
+                      <Tag color={b.hideBacklink ? "orange" : "green"}>{b.hideBacklink ? "ẩn" : "hiện"}</Tag>
+                    </div>
+                  ))}
+                </Space>
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Expires">
               {record?.expiresAt ? new Date(record.expiresAt).toLocaleString() : "Never"}
             </Descriptions.Item>

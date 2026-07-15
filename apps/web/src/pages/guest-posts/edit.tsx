@@ -3,7 +3,7 @@ import { useGetIdentity } from "@refinedev/core";
 import { Form, Input, InputNumber, DatePicker, Select, Row, Col, Grid, Alert, Space, Switch } from "antd";
 import dayjs from "dayjs";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
-import { ContentEditor, PreviewButton, REL_OPTIONS } from "./form-utils";
+import { ContentEditor, PreviewButton, REL_OPTIONS, ExtraBacklinks } from "./form-utils";
 
 const { useBreakpoint } = Grid;
 
@@ -108,6 +108,7 @@ export const GuestPostEdit = () => {
             </Form.Item>
           </Col>
         </Row>
+        <ExtraBacklinks />
         {record?.contentSource === "ai" ? (
           // Bài AI per-site: không sửa content ở đây (mỗi site có bài riêng) —
           // chỉ chỉnh tham số generate cho các lần deploy tới website mới

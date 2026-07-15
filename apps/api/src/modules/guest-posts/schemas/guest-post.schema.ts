@@ -3,6 +3,24 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type GuestPostDocument = HydratedDocument<GuestPost>;
 
+// Backlink phụ (ngoài backlink chính anchorText/targetUrl/rel/hideBacklink của post).
+// Chung expiration với post (không có expiresAt riêng).
+@Schema({ _id: false })
+export class Backlink {
+  @Prop({ required: true })
+  anchorText: string;
+
+  @Prop({ required: true })
+  targetUrl: string;
+
+  @Prop({ type: String, default: null })
+  rel: string | null;
+
+  @Prop({ default: true })
+  hideBacklink: boolean;
+}
+const BacklinkSchema = SchemaFactory.createForClass(Backlink);
+
 @Schema({ timestamps: true })
 export class GuestPost {
   @Prop({ required: true })
@@ -41,6 +59,10 @@ export class GuestPost {
   // Mặc định ẩn — bật hiện khi bài đã ổn định trên prod
   @Prop({ default: true })
   hideBacklink: boolean;
+
+  // Backlink phụ (tùy chọn) — chèn thêm ngoài backlink chính; chung expiration với post
+  @Prop({ type: [BacklinkSchema], default: [] })
+  extraBacklinks: Backlink[];
 
   @Prop({ default: 'admin' })
   source: string;

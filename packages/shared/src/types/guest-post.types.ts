@@ -1,3 +1,10 @@
+export interface IBacklink {
+  anchorText: string;
+  targetUrl: string;
+  rel: string | null;
+  hideBacklink: boolean;
+}
+
 export interface IGuestPost {
   _id: string;
   title: string;
@@ -8,6 +15,8 @@ export interface IGuestPost {
   anchorText: string;
   targetUrl: string;
   rel: string | null;
+  /** Backlink phụ (ngoài backlink chính) — chung expiration với post */
+  extraBacklinks: IBacklink[];
   status: 'pending' | 'active' | 'disabled' | 'expired';
   /** false = noindex + không vào sitemap (mặc định); true = cho index + vào sitemap */
   realPublic: boolean;

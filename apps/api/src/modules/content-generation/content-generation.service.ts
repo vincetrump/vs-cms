@@ -9,12 +9,20 @@ export interface SiteContext {
   categories?: string[];
 }
 
+export interface BacklinkSpec {
+  anchorText: string;
+  targetUrl: string;
+  rel?: string | null;
+}
+
 export interface GenerateArticleParams {
   topic?: string; // bỏ trống → AI tự chọn chủ đề theo siteContext
   siteContext?: SiteContext;
   anchorText: string;
   targetUrl: string;
   rel?: string | null;
+  // Backlink phụ (ngoài anchorText/targetUrl chính) — AI chèn thêm tự nhiên vào bài
+  extraBacklinks?: BacklinkSpec[];
   language?: string;
   wordCount?: number;
 }
@@ -104,12 +112,25 @@ Bài viết phải phù hợp với chủ đề chung của website này để t
       ? `về chủ đề: "${params.topic}".`
       : `— hãy TỰ CHỌN một chủ đề cụ thể, hấp dẫn, phù hợp với chủ đề chung của website bên dưới, đồng thời liên quan đủ gần để chèn backlink (anchor "${params.anchorText}" → ${params.targetUrl}) một cách tự nhiên trong ngữ cảnh. Tránh chủ đề quá chung chung.`;
 
-    const relAttr = params.rel ? ` rel="${params.rel}"` : '';
+    // Danh sách toàn bộ backlink cần chèn (chính + phụ)
+    const allLinks = [
+      { anchorText: params.anchorText, targetUrl: params.targetUrl, rel: params.rel },
+      ...(params.extraBacklinks || []),
+    ].filter((l) => l.anchorText && l.targetUrl);
+    const linksInstruction = allLinks
+      .map((l, i) => {
+        const relAttr = l.rel ? ` rel="${l.rel}"` : '';
+        return `  ${i + 1}. anchor text "${l.anchorText}" → URL "${l.targetUrl}" (dạng <a href="${l.targetUrl}"${relAttr}>${l.anchorText}</a>)`;
+      })
+      .join('\n');
+    const linkCountText = allLinks.length === 1 ? 'đúng 1 backlink' : `đủ ${allLinks.length} backlink (mỗi link 1 lần)`;
+
     const prompt = `Bạn là một content writer SEO chuyên nghiệp. Viết một bài viết ${language === 'vi' ? 'tiếng Việt' : 'in English'} khoảng ${wordCount} từ ${topicInstruction}
 ${siteBlock}
 Yêu cầu:
 - Bài viết tự nhiên, hữu ích cho người đọc, chuẩn SEO
-- Trong nội dung PHẢI chèn đúng 1 backlink tự nhiên: anchor text "${params.anchorText}" trỏ đến URL "${params.targetUrl}" (dạng <a href="${params.targetUrl}"${relAttr}>${params.anchorText}</a>). Đặt backlink ở vị trí tự nhiên trong ngữ cảnh, khoảng 1/3 đến 2/3 bài viết
+- Trong nội dung PHẢI chèn ${linkCountText} tự nhiên, mỗi backlink đặt ở một vị trí khác nhau trong thân bài (không dồn cạnh nhau, không nhồi nhét):
+${linksInstruction}
 - Content là HTML body: dùng <p>, <h2>, <h3>, <ul>/<ol>/<li>, <strong>, <em>. KHÔNG dùng <h1>, <script>, <style>, không markdown
 - Không nhồi nhét từ khóa, viết như người thật
 - Mở bài hấp dẫn, thân bài có 2-4 mục h2, kết bài ngắn gọn`;

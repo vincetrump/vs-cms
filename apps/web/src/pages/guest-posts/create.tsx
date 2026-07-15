@@ -5,7 +5,7 @@ import { Form, Input, InputNumber, DatePicker, Select, Alert, Row, Col, Grid, Sw
 import { RobotOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { WebsiteSelector } from "../../components/WebsiteSelector";
-import { REL_OPTIONS, fetchAiConfigured } from "./form-utils";
+import { REL_OPTIONS, fetchAiConfigured, ExtraBacklinks } from "./form-utils";
 
 const { useBreakpoint } = Grid;
 
@@ -86,6 +86,7 @@ export const GuestPostCreate = () => {
             </Form.Item>
           </Col>
         </Row>
+        <ExtraBacklinks />
         <Form.Item label={isAdmin ? "Deploy to Websites" : "Chọn websites để deploy (sau khi admin duyệt)"} name="websiteIds">
           <WebsiteSelector />
         </Form.Item>
