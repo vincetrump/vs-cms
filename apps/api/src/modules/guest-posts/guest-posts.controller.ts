@@ -278,10 +278,12 @@ export class GuestPostsController {
     }
 
     const isSale = req.user.role === 'sale';
-    // Đổi trạng thái ẩn/hiện backlink hoặc danh sách backlink phụ cần re-render → tính là content change
-    const hasContentChanges = !!(
-      dto.title || dto.content || dto.metaDescription || dto.anchorText || dto.targetUrl || dto.rel !== undefined || hideBacklinkChanged || extraBacklinksChanged
-    );
+    // Chỉ tính là content change khi field render-ra-bài THẬT SỰ đổi (dựa vào `changes` đã so
+    // sánh với giá trị cũ) — tránh redeploy dư thừa khi form edit gửi lại toàn bộ field không đổi
+    // (ví dụ chỉ sửa ngày expire). expiresAt/slug/category/websites KHÔNG kích hoạt redeploy.
+    const CONTENT_FIELDS = ['title', 'content', 'metaDescription', 'anchorText', 'targetUrl', 'rel'];
+    const hasContentChanges =
+      CONTENT_FIELDS.some((f) => f in changes) || hideBacklinkChanged || extraBacklinksChanged;
 
     if (isSale && existing.status === 'active' && hasContentChanges) {
       updateData.status = 'pending';
