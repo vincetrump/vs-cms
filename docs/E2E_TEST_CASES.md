@@ -1,7 +1,7 @@
 # VS-CMS E2E Test Cases
 
 **Automated: 81 tests** (text link + footer link) | Last run: 79 pass / 2 fail (97.5%)
-**Manual: 16 cases** (Guest Post GP-01 → GP-16, xem section cuối — chưa automate)
+**Manual: 24 cases** (Guest Post GP-01 → GP-24, xem section cuối — chưa automate)
 
 Script: [`docs/e2e-test.sh`](e2e-test.sh)
 
@@ -157,26 +157,61 @@ Verifies all test data was fully cleaned up from both websites.
 
 ## Guest Post — manual test checklist (chưa có trong e2e-test.sh)
 
-Các case cần test tay sau khi deploy tính năng Guest Post:
+Guest post tạo **file HTML mới** tại `/{category}/{slug}/index.html` (khác text/footer link chèn snippet vào page có sẵn). UI create là **100% AI** — chỉ nhập anchor + URL (+ rel, expiration, chủ đề tùy chọn, số từ, toggle Ẩn backlink, nút Thêm backlink) rồi Save; toàn bộ bài sinh **lúc deploy**, mỗi website một bài riêng. Các case dưới cần test tay sau khi deploy tính năng.
+
+### Metadata & Template
 
 | # | Case | Cách test | Expected |
 |---|------|-----------|----------|
-| GP-01 | Scan metadata 1 website | Website detail → Guest Post Metadata → Rescan, đợi job xong → Refresh | siteName/categories/sitemap hiển thị đúng, Preview Template render giống site |
-| GP-02 | Admin tạo guest post + deploy | Tạo post (chọn 1-2 websites) | Job `deploy_guest_post` chạy, file `/{cat}/{slug}/index.html` tồn tại trên server, HTML chứa header/footer của site |
-| GP-03 | Mặc định noindex + không sitemap | Xem source bài vừa deploy | `<meta name="robots" content="noindex, nofollow">`, sitemap.xml KHÔNG có entry |
-| GP-04 | Toggle Real Public | Show page → Go Public, đợi redeploy job | Meta đổi thành `index, follow`, sitemap.xml có entry bài viết |
-| GP-05 | Toggle về NoIndex | Show page → Về NoIndex | Meta về noindex, entry sitemap bị gỡ |
-| GP-06 | Backlink trong bài có marker | Xem source bài deploy | Backlink được bọc `<!-- vs-cms-gplink:{postId} -->...<!-- /vs-cms-gplink:{postId} -->` (trong câu hoặc đoạn "Tham khảo thêm" cuối bài) |
-| GP-07 | Internal links | Deploy 2-3 bài cùng category lên cùng website | Bài cũ có block `vs-cms-ilink:{id}` trỏ đến bài mới (tối đa 2 nguồn) |
-| GP-08 | Sale tạo → pending → approve | Sale tạo post, admin approve | Post pending không deploy; sau approve mới deploy |
-| GP-09 | Sale edit bài active | Sale sửa content bài active | Status về pending, nội dung trên site giữ nguyên đến khi admin approve |
-| GP-10 | Undeploy / delete | Disable hoặc xóa post | File bị xóa, slug dir bị xóa nếu rỗng (category dir còn), sitemap entry gỡ, internal links gỡ khỏi bài khác |
-| GP-11 | Expired = gỡ backlink, giữ bài | Set expiresAt quá khứ, chạy job `check_expired_guest_posts` | Post → expired; file bài viết VẪN CÒN trên site nhưng backlink biến mất (marker gỡ sạch); deployment tag "Link đã gỡ"; bấm "Kích hoạt lại" → backlink được chèn lại |
-| GP-12 | Slug trùng | Deploy 2 post cùng slug cùng category lên 1 site | Post thứ 2 tự thành `{slug}-2` |
-| GP-13 | Tạo bài AI (cần ANTHROPIC_API_KEY) | Create page → nhập anchor/URL + chọn websites (chủ đề bỏ trống = AI tự chọn theo site) → Save | Post tạo với title tạm, content trống; KHÔNG có nút Generate; toàn bộ bài sinh lúc deploy |
-| GP-14 | Redeploy giữ URL + internal links | Admin sửa content bài active (bài manual) | File được overwrite, URL không đổi, ilink markers của bài khác trong file vẫn còn |
-| GP-15 | Per-site AI generation | Tạo post AI, deploy lên 2+ websites | Job log hiện "AI mode: mỗi website..."; mỗi site một bài KHÁC NHAU (title/slug/content riêng — xem cột "Bài viết (AI per site)" trong Deployments); redeploy/toggle-public giữ nguyên bài từng site |
-| GP-16 | SEO tags đầy đủ | View source bài đã deploy | Có canonical đúng URL, og:title/og:description/og:url, twitter:card, JSON-LD Article (datePublished), ngày đăng hiển thị dưới h1 |
+| GP-01 | Scan metadata 1 website | Website detail → Guest Post Metadata → Rescan, đợi job `scan_website_metadata` xong → Refresh | siteName/navCategories/hasSitemap hiển thị đúng; `templateSource` = `detail-page` (site có trang chi tiết thật, kèm `templateSamplePath`) hoặc `homepage` (fallback từ header/footer homepage); `stylesheetLinks` lưu CSS ngoài của site |
+| GP-02 | Preview template render giống site | Metadata → Preview Template | Layout render giống site thật (head/CSS/header/footer nguyên vẹn); header/footer đã strip marker VS-CMS + external links; placeholder cho title/meta/content/breadcrumb |
+| GP-03 | Template wrapper căn giữa (không tràn viền) | Deploy 1 bài lên site có wrapper → mở URL bài trên trình duyệt | Nội dung nằm trong wrapper căn giữa (vd `<div class="container ...-inner">` bên trong `<article>`), KHÔNG tràn sát viền; meta-bar tác giả/ngày cứng của bài mẫu đã bị bỏ, chỉ còn ngày đăng do VS-CMS chèn |
+
+### Deploy & SEO
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-04 | Tạo guest post AI + deploy | Create page → nhập anchor + URL + chọn 1-2 websites (chủ đề bỏ trống = AI tự chọn theo site) → Save → deploy | Post tạo với title tạm + content master trống; KHÔNG có nút Generate nháp; job `deploy_guest_post` chạy; file `/{category}/{slug}/index.html` tồn tại trên server; HTML chứa header/footer của site |
+| GP-05 | Mặc định noindex + không sitemap | View source bài vừa deploy + xem sitemap.xml | `<meta name="robots" content="noindex, nofollow">`; sitemap.xml KHÔNG có entry bài (`realPublic=false`) |
+| GP-06 | Toggle Real Public | Show page → Go Public, đợi redeploy job | robots đổi `index, follow`; sitemap.xml có entry bài viết |
+| GP-07 | Toggle về NoIndex | Show page → Về NoIndex, đợi redeploy | robots về `noindex, nofollow`; entry sitemap bị gỡ |
+| GP-08 | Chặn toggle-public khi expired | Post đang expired → bấm Go Public | API chặn (lỗi), `realPublic` không đổi |
+| GP-09 | SEO tags đầy đủ | View source bài đã deploy | Có canonical đúng URL; og:type=article + og:title/description/url/site_name/locale; twitter:card; JSON-LD Article với `datePublished` = `firstDeployedAt`; article:published_time/modified_time; ngày đăng hiển thị dưới `<h1>` |
+| GP-10 | Slug trùng + category fallback | Deploy 2 post cùng slug/category lên 1 site; deploy post có category không tồn tại trên site | Post thứ 2 → `{slug}-2` (rồi `-3`...); category thiếu → fallback `tong-hop` |
+
+### Backlink (chính + phụ)
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-11 | Backlink chính có marker | View source bài deploy | Backlink chính bọc `<!-- vs-cms-gplink:{postId} -->...<!-- /vs-cms-gplink:{postId} -->`; anchor + href + rel đúng (trong câu hoặc đoạn "Tham khảo thêm" cuối bài) |
+| GP-12 | Multi-backlink (link phụ) | Create page → nút "Thêm backlink" thêm 1-2 extraBacklinks (mỗi cái anchor + URL + rel) → deploy → view source | Mỗi link phụ bọc marker `<!-- vs-cms-gplink:{postId}:{i} -->...`; TẤT CẢ link (chính + phụ) đều xuất hiện đúng anchor/URL/rel; không bọc chồng marker |
+| GP-13 | hideBacklink mặc định ẩn + toggle hiện | Tạo post giữ mặc định "Ẩn backlink" → view source; sau đó tắt Ẩn → redeploy → view source | Mặc định (hideBacklink=true): backlink VẪN chèn nhưng bọc `style="display:none"`; sau khi tắt Ẩn + redeploy: backlink hiển thị bình thường (không còn display:none) |
+
+### Expire & Re-activate
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-14 | Expired = gỡ backlink, giữ bài (chính + phụ) | Set `expiresAt` quá khứ (có cả link chính + phụ), chạy job `check_expired_guest_posts` | Post → expired; file bài viết VẪN CÒN, `wordCount` giữ nguyên; TẤT CẢ backlink biến mất (marker chính + `:{i}` gỡ sạch): đoạn "Tham khảo thêm" tự thêm → xóa cả đoạn, link trong câu → unlink giữ anchor text, backlink ẩn (display:none) → xóa hẳn block (tránh lộ anchor); deployment flag `backlinkRemoved=true`, tag "Link đã gỡ"; sitemap + internal links GIỮ NGUYÊN |
+| GP-15 | 1 site gỡ backlink lỗi → giữ active | Mô phỏng 1 site lỗi (vd file không ghi được) khi expire | Post GIỮ `active` (KHÔNG chuyển expired) để cron đêm sau retry gỡ; site gỡ thành công vẫn `backlinkRemoved=true` |
+| GP-16 | Re-activate expired → chèn lại backlink | Post expired → bấm "Kích hoạt lại" (toggle) | Redeploy chèn lại toàn bộ backlink (chính + phụ); xóa `expiresAt` cũ (đã qua); post về `active`; `backlinkRemoved` clear |
+
+### Per-site AI generation
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-17 | Per-site AI generation | Tạo post AI, deploy lên 2+ websites | Job log hiện "AI mode: mỗi website..."; mỗi site MỘT bài KHÁC NHAU (title/slug/content/metaDescription/wordCount riêng — cột "Bài viết (AI per site)" trong Deployments); content + marker gplink lưu trên deployment record; redeploy/toggle-public KHÔNG regenerate |
+| GP-18 | Content retry khi truncation | Deploy post AI với số từ lớn → xem job console | Nếu output bị cắt (kết thúc giữa thẻ) hoặc quá ngắn (<40% số từ yêu cầu) → service retry tối đa 3 lần; bài cuối đầy đủ; link trong bài dùng `<a href='...'>` single-quote (tránh va chạm JSON constrained-decoding) |
+| GP-19 | Regenerate per-site | Show page → Deployments → nút Regenerate 1 site | Job `regenerate_guest_post`: AI viết bài MỚI cho site đó, GIỮ URL/filePath/pagePath cũ; site khác KHÔNG đổi |
+| GP-20 | Undeploy per-site | Show page → Deployments → nút Gỡ 1 site | Chỉ site đó bị undeploy (xóa file, gỡ sitemap + ilink); site khác giữ nguyên |
+
+### Sale flow, Internal links, Cleanup
+
+| # | Case | Cách test | Expected |
+|---|------|-----------|----------|
+| GP-21 | Sale tạo → pending → approve | Sale tạo post, admin approve | Post `pending` KHÔNG deploy; sau approve mới chạy `deploy_guest_post` |
+| GP-22 | Sale edit + Sale xóa | Sale sửa content bài active (bài manual qua API) → về pending; Sale xóa bài của mình | Edit: status về `pending`, nội dung site giữ nguyên đến khi admin approve. Delete: bài được undeploy (không mồ côi file) |
+| GP-23 | Internal links | Deploy 2-3 bài cùng category lên cùng website | Bài cũ có block `vs-cms-ilink:{id}` "Xem thêm" trỏ bài mới (tối đa 2 nguồn); track `internalLinkSourceFiles`; overwrite bài giữ nguyên ilink của bài khác |
+| GP-24 | Undeploy/delete + job console | Disable/xóa post; mở trang Show Job khi job chạy | Undeploy: xóa file + rmdir slug dir nếu rỗng (KHÔNG đụng category dir) + gỡ sitemap + gỡ ilink markers. Job console poll 2s, hiện full Logger output mọi service (JobConsoleLogger); status có pending/processing/completed/failed/cancelled; toggle/delete hủy pending job dư thừa (→ cancelled); delete chỉ bị chặn khi có job đang RUNNING |
 
 ---
 
