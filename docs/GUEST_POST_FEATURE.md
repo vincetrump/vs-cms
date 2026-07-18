@@ -33,7 +33,7 @@ Tài liệu module tổng quan: `CLAUDE.md`. Đây là tài liệu con chuyên s
 | `category` | string | (required) | Category slug (backend đặt `tong-hop` nếu trống) |
 | `anchorText` | string | (required) | Anchor của **backlink chính** |
 | `targetUrl` | string | (required) | URL đích backlink chính |
-| `rel` | string \| null | `null` | rel của backlink chính (token hợp lệ: nofollow/noopener/noreferrer/sponsored/ugc/external) |
+| `rel` | string \| null | `null` | rel của backlink chính (token hợp lệ: nofollow/noopener/noreferrer/sponsored/ugc/external). UI có option **`dofollow` (mặc định)** → controller `normRel()` chuẩn hoá `'dofollow'`/rỗng về `null` (bỏ thuộc tính rel) cho cả link chính lẫn phụ |
 | `status` | string | `pending` | `pending` \| `active` \| `disabled` \| `expired` |
 | `realPublic` | boolean | `false` | `false` = noindex + không sitemap; `true` = index,follow + vào sitemap |
 | `hideBacklink` | boolean | **`true`** | Backlink chính vẫn chèn nhưng bọc `display:none` (ẩn tạm khi lên prod) |
@@ -312,6 +312,8 @@ Khi deploy bài mới, `insertInternalLinks()` tìm tối đa **2 bài cùng cat
 
 Worker single-threaded, poll 3s, xử lý **1 job/lần** (`onModuleInit` reset job running dở khi restart). Job status có thêm `cancelled` (toggle/delete hủy pending dư thừa qua `cancelPendingJobsFor`).
 
+**Progress per-site**: `deployToWebsites(..., onProgress)` gọi callback sau mỗi site → `deploy_guest_post`/`regenerate_guest_post` cập nhật `progressCurrent/Total`, thanh Progress trang Show Job nhích theo từng site (trước đây đứng 0/N tới khi cả job xong).
+
 **JobConsoleLogger** (`common/logging/job-console.logger.ts`, đăng ký ở `main.ts`): custom `ConsoleLogger` — khi worker gọi `startCapture`, **forward mọi dòng log của mọi service** (AI generate, SSH, per-site…) vào `job.logs`, batch flush mỗi **800ms** (tránh ghi Mongo từng dòng); trang Show Job poll 2s khi running để thấy console live. Giới hạn `MAX_CAPTURED=3000` dòng (loại các context bootstrap như InstanceLoader/NestFactory). AI mode log thêm "mỗi website generate một bài riêng (~1-3 phút/site)".
 
 ---
@@ -322,18 +324,18 @@ Worker single-threaded, poll 3s, xử lý **1 job/lần** (`onModuleInit` reset 
 Chỉ nhập: **Anchor Text + Target URL** (bắt buộc) + Rel + Expiration + toggle **Ẩn backlink** (mặc định Ẩn) + **Backlink phụ** (nút "Thêm backlink", component `ExtraBacklinks`) + chọn Websites + Chủ đề (tùy chọn) + Độ dài (mặc định 800 từ). `contentSource='ai'` hidden. **Không** có bước generate nháp, **không** chế độ tự viết. title/content master để trống → backend đặt title tạm. Chặn Save nếu AI chưa cấu hình (`fetchAiConfigured`). Sale → Alert bài sẽ ở Pending.
 
 ### Edit (`edit.tsx`)
-Bài AI: **không sửa content** (mỗi site bài riêng); chỉ chỉnh Title/Anchor/URL/Rel/Expiration/Ẩn backlink/Backlink phụ + tham số AI (aiTopic/aiWordCount cho lần deploy site MỚI). Anchor/URL/Rel/hideBacklink/extraBacklinks đổi → redeploy cập nhật backlink mọi site (URL bài giữ nguyên). Bài manual cũ: có `ContentEditor` (word count live + chèn backlink) + `PreviewButton`. Sale sửa bài active → về pending. Slug/category/meta ẩn (quản lý tự động).
+Bài AI: **không sửa content** (mỗi site bài riêng); chỉ chỉnh Title/Anchor/URL/Rel/Expiration/Ẩn backlink/Backlink phụ + tham số AI (aiTopic/aiWordCount cho lần deploy site MỚI). Anchor/URL/Rel/hideBacklink/extraBacklinks đổi → redeploy cập nhật backlink mọi site (URL bài giữ nguyên). Bài manual cũ: có `ContentEditor` (word count live + chèn backlink) + `PreviewButton`. Sale sửa bài active → về pending. Slug/category/meta ẩn (quản lý tự động). **Redeploy chỉ chạy khi content THẬT SỰ đổi** (`hasContentChanges` tính từ diff `changes`, không dựa field-có-mặt) — sửa mỗi expiresAt/slug/category/websites KHÔNG tạo redeploy dư thừa.
 
 ### Show (`show.tsx`)
 3 tab: **Thông tin** (Descriptions + bảng Deployments), **Nội dung** (iframe; bài AI báo xem per-site), **Lịch sử** (timeline, poll history endpoint).
 - Descriptions gồm cả **Backlink** (Đang ẩn/Hiện) + **Backlink phụ** (list anchor→url + rel + ẩn/hiện).
-- Bảng Deployments (admin): cột Website, Article URL, **"Bài viết (AI per site)"** (title per-site), Status (+ tag **"Link đã gỡ"** khi `backlinkRemoved`), Category, Sitemap, Deployed, Error, **Thao tác**: nút **Regenerate** (post AI, per-site, Popconfirm) + **Gỡ** (undeploy per-site). Cả hai disable khi không `deployed`.
-- Header buttons: Edit, Export CSV, **Go Public / Về NoIndex** (toggle-public), **Approve** (pending), **Disable** (active), **Enable** (disabled), **Kích hoạt lại** (expired), **Delete**.
+- Bảng Deployments (admin): cột **No.** (STT, fixed-left), Website, Article URL, **"Bài viết (AI per site)"** (title per-site), Status (+ tag **"Link đã gỡ"** khi `backlinkRemoved`), Category, Sitemap, Deployed, Error, **Thao tác**: nút **Regenerate** (post AI, per-site, Popconfirm) + **Gỡ** (undeploy per-site). Cả hai disable khi không `deployed`.
+- Header buttons: Edit, **Export CSV** (multi-anchor: mỗi **(website × backlink)** 1 dòng — backlink chính + phụ, cột **Backlink Status** = live/hidden/removed-expired), **Go Public / Về NoIndex** (toggle-public), **Approve** (pending), **Disable** (active), **Enable** (disabled), **Kích hoạt lại** (expired), **Delete**.
 
 ### List (`list.tsx`)
 Bảng: Title (+anchor mobile), Target URL, Category, Status (filter), **SEO** (Public/NoIndex, filter), Sites (số requestedWebsiteIds), Words, Expires, Created By, Created. Action: Show/Edit + toggle (admin). Nút "New Guest Post".
 
-`form-utils.tsx`: `ExtraBacklinks`, `REL_OPTIONS`, `ContentEditor`, `PreviewButton` (render template site đầu tiên), `fetchAiConfigured` (cache `/guest-posts/ai-status`), `CategoryInput`, `slugify`/`countWords`.
+`form-utils.tsx`: `ExtraBacklinks`, `REL_OPTIONS` (option đầu là `dofollow (mặc định)`), `ContentEditor`, `PreviewButton` (render template site đầu tiên), `fetchAiConfigured` (cache `/guest-posts/ai-status`), `CategoryInput`, `slugify`/`countWords`.
 
 ---
 

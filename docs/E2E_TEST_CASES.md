@@ -1,7 +1,7 @@
 # VS-CMS E2E Test Cases
 
 **Automated: 81 tests** (text link + footer link) | Last run: 79 pass / 2 fail (97.5%)
-**Manual: 24 cases** (Guest Post GP-01 → GP-24, xem section cuối — chưa automate)
+**Manual: 29 cases** (Guest Post GP-01 → GP-29, xem section cuối — chưa automate)
 
 Script: [`docs/e2e-test.sh`](e2e-test.sh)
 
@@ -212,6 +212,11 @@ Guest post tạo **file HTML mới** tại `/{category}/{slug}/index.html` (khá
 | GP-22 | Sale edit + Sale xóa | Sale sửa content bài active (bài manual qua API) → về pending; Sale xóa bài của mình | Edit: status về `pending`, nội dung site giữ nguyên đến khi admin approve. Delete: bài được undeploy (không mồ côi file) |
 | GP-23 | Internal links | Deploy 2-3 bài cùng category lên cùng website | Bài cũ có block `vs-cms-ilink:{id}` "Xem thêm" trỏ bài mới (tối đa 2 nguồn); track `internalLinkSourceFiles`; overwrite bài giữ nguyên ilink của bài khác |
 | GP-24 | Undeploy/delete + job console | Disable/xóa post; mở trang Show Job khi job chạy | Undeploy: xóa file + rmdir slug dir nếu rỗng (KHÔNG đụng category dir) + gỡ sitemap + gỡ ilink markers. Job console poll 2s, hiện full Logger output mọi service (JobConsoleLogger); status có pending/processing/completed/failed/cancelled; toggle/delete hủy pending job dư thừa (→ cancelled); delete chỉ bị chặn khi có job đang RUNNING |
+| GP-25 | Rel = dofollow | Edit post → Rel chọn "dofollow (mặc định)" → Save → đợi redeploy | DB `rel=null` (chính + phụ); thẻ `<a>` backlink trên MỌI site KHÔNG còn `rel=` (dofollow). DTO chấp nhận token, `normRel()` chuẩn hoá về null |
+| GP-26 | Progress bar per-site | Deploy AI lên nhiều site → mở Show Job | Thanh Progress nhích theo từng site (1/N, 2/N…) trong lúc chạy, không đứng 0/N tới cuối; áp cho deploy + regenerate |
+| GP-27 | Export CSV multi-anchor | Show page → Export CSV (post có backlink phụ) | Mỗi (website × backlink) 1 dòng — đủ backlink chính + phụ; cột **Backlink Status** = live / hidden / removed (expired); tên file `...-backlinks.csv` |
+| GP-28 | Edit chỉ expire → không redeploy | Edit post active → đổi mỗi Expiration Date → Save | KHÔNG tạo `redeploy_guest_post` (chỉ đổi field không phải content); expiresAt mới lưu đúng DB. Đổi Anchor/URL/Rel/hideBacklink/extraBacklinks mới tạo redeploy |
+| GP-29 | Cột No. trong Deployments | Show page → tab Thông tin → bảng Deployments | Có cột "No." (STT 1,2,3…) cố định bên trái, không bị cuộn mất |
 
 ---
 
